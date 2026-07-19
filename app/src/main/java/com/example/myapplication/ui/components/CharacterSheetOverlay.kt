@@ -84,7 +84,7 @@ fun CharacterSheetOverlay(
                     .background(ArcanePrimary.copy(alpha = 0.25f))
             )
         },
-        modifier = modifier.fillMaxHeight(0.96f) // 全屏高度
+        modifier = modifier // 高度由内容决定，不强制撑满
     ) {
         CharacterSheetContent(
             stats = stats,
@@ -117,10 +117,8 @@ private fun CharacterSheetContent(
 
     Column(
         modifier = Modifier
-            .fillMaxSize()
-            // 在最内层容器应用 navigationBarsPadding
-            // 确保内容和药水使用按钮被安全推到物理导航键/手势条上方
-            .navigationBarsPadding() 
+            .fillMaxWidth()
+            .navigationBarsPadding()
             .padding(horizontal = 20.dp, vertical = 8.dp)
     ) {
         // 头部：手账标题
@@ -179,12 +177,8 @@ private fun CharacterSheetContent(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // 核心内容区
-        Box(
-            modifier = Modifier
-                .weight(1f)
-                .fillMaxWidth()
-        ) {
+        // 核心内容区：不再用 weight(1f) 强制撑满，让内容决定高度
+        Box(modifier = Modifier.fillMaxWidth()) {
             AnimatedContent(
                 targetState = activeTab,
                 transitionSpec = {
@@ -197,7 +191,7 @@ private fun CharacterSheetContent(
                     }
                 },
                 label = "tab_transition",
-                modifier = Modifier.fillMaxSize()
+                modifier = Modifier.fillMaxWidth()
             ) { targetTab ->
                 when (targetTab) {
                     0 -> StatsTab(stats)
@@ -360,7 +354,11 @@ private fun BackpackTab(
     onSelectItem: (GameItem) -> Unit,
     onUseItem: (GameItem) -> Unit
 ) {
-    Column(modifier = Modifier.fillMaxSize()) {
+    // 给定固定高度，使内部 weight(1f) 的格子区和底部详情面板能正确分配空间
+    Column(modifier = Modifier
+        .fillMaxWidth()
+        .height(480.dp)
+    ) {
         Box(
             modifier = Modifier
                 .weight(1f)
