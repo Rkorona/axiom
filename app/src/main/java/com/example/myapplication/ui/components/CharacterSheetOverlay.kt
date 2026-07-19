@@ -235,7 +235,7 @@ private fun CharacterSheetContent(
 private fun StatsTab(stats: CharacterStats) {
     Column(
         modifier = Modifier
-            .fillMaxSize()
+            .fillMaxWidth()
             .verticalScroll(rememberScrollState())
     ) {
         // 角色信息汇总
