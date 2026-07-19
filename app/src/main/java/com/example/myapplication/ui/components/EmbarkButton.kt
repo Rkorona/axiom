@@ -1,95 +1,109 @@
 package com.example.myapplication.ui.components
 
-import androidx.compose.animation.core.*
+import androidx.compose.animation.core.EaseInOutQuad
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.myapplication.ui.theme.FireAmber
-import com.example.myapplication.ui.theme.MythicGold
+import com.example.myapplication.ui.theme.ArcanePrimary
+import com.example.myapplication.ui.theme.VoidBackground
 
+/**
+ * 具有按压回弹与物理触觉震动反馈的“出征”按钮。
+ * 融合了 M3 Expressive 的手势动态响应特征。
+ */
 @Composable
 fun EmbarkButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val infiniteTransition = rememberInfiniteTransition(label = "compass_pulse")
+    val haptic = LocalHapticFeedback.current
+    val interactionSource = remember { MutableInteractionSource() }
+    val isPressed by interactionSource.collectIsPressedAsState()
 
-    // 整个按钮随着古老契约的共鸣微弱缩放
-    val scale by infiniteTransition.animateFloat(
+    // 1. 无限循环的背景微弱共鸣呼吸
+    val infiniteTransition = rememberInfiniteTransition(label = "embark_pulse")
+    val idleScale by infiniteTransition.animateFloat(
         initialValue = 0.98f,
-        targetValue = 1.04f,
+        targetValue = 1.02f,
         animationSpec = infiniteRepeatable(
             animation = tween(durationMillis = 1800, easing = EaseInOutQuad),
             repeatMode = RepeatMode.Reverse
         ),
-        label = "scale"
+        label = "idle_scale"
     )
+
+    // 2. 玩家手指按下时的即时收缩反馈 (按下时收缩至 0.92f，松开后在 spring 作用下弹回)
+    val animatedScale by animateFloatAsState(
+        targetValue = if (isPressed) 0.92f else idleScale,
+        animationSpec = tween(durationMillis = 100),
+        label = "press_scale"
+    )
+
+    // 3. 物理触觉效果：按下与抬起时，通过手机马达给予轻微触觉回馈
+    LaunchedEffect(isPressed) {
+        if (isPressed) {
+            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove) // 模拟卡扣卡入
+        }
+    }
 
     Box(
         modifier = modifier
-            .scale(scale)
-            .size(width = 240.dp, height = 72.dp),
-        contentAlignment = Alignment.Center
-    ) {
-        // 后置发光阴影，模拟神圣法阵
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .scale(1.1f)
-                .background(
-                    Brush.radialGradient(
-                        colors = listOf(FireAmber.copy(alpha = 0.25f), Color.Transparent),
-                    ),
-                    RunicOctagonShape()
-                )
-        )
-
-        // 核心金属按钮
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .clip(RunicOctagonShape())
-                .background(
-                    Brush.verticalGradient(
-                        colors = listOf(MythicGold, FireAmber)
+            .scale(animatedScale)
+            .fillMaxWidth()
+            .height(72.dp)
+            .clip(ExpressiveShapes.Card)
+            .background(
+                Brush.linearGradient(
+                    colors = listOf(
+                        ArcanePrimary,
+                        Color(0xFFD6B8FF)
                     )
                 )
-                .border(2.dp, MythicGold, RunicOctagonShape())
-                .clickable { onClick() },
-            contentAlignment = Alignment.Center
-        ) {
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Text(
-                    text = "◆ 踏入荒野 ◆",
-                    fontSize = 18.sp,
-                    color = Color.Black,
-                    fontWeight = FontWeight.ExtraBold,
-                    fontFamily = FontFamily.Serif,
-                    letterSpacing = 2.sp
-                )
-                Text(
-                    text = "（开启地城副本冒险）",
-                    fontSize = 10.sp,
-                    color = Color.Black.copy(alpha = 0.7f),
-                    fontFamily = FontFamily.Serif
-                )
-            }
+            )
+            .clickable(
+                interactionSource = interactionSource,
+                indication = null, // 禁用默认现代水波纹，保持卡牌厚重干净感
+                onClick = {
+                    haptic.performHapticFeedback(HapticFeedbackType.LongPress) // 触发更强的确认震动
+                    onClick()
+                }
+            ),
+        contentAlignment = Alignment.Center
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(text = "⚔️", fontSize = 18.sp)
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(
+                text = "出征荒野",
+                fontSize = 17.sp,
+                color = VoidBackground,
+                fontWeight = FontWeight.ExtraBold,
+                letterSpacing = 0.5.sp
+            )
         }
     }
 }

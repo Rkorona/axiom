@@ -1,7 +1,6 @@
 package com.example.myapplication.ui.screen
 
 import android.widget.Toast
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -21,6 +20,9 @@ import com.example.myapplication.ui.components.*
 @Composable
 fun TownHubScreen() {
     val context = LocalContext.current
+
+    // 控制手账抽屉的打开状态
+    var showCharacterSheet by remember { mutableStateOf(false) }
 
     // 初始化本地模拟的跑团游戏数据
     var gameState by remember {
@@ -51,34 +53,40 @@ fun TownHubScreen() {
         modifier = Modifier.fillMaxSize(),
         containerColor = MaterialTheme.colorScheme.background
     ) { innerPadding ->
+        // 外层 Box 保持填满全屏，让氛围光晕（AmbientHearthGlow）完美覆盖整个窗口
         Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding)
+            modifier = Modifier.fillMaxSize()
         ) {
-            // 1. 背景动态炉火微光
+            // 1. 背景氛围光源（炉火 + 秘法双光源）
             AmbientHearthGlow()
 
-            // 2. 主页面内容滚动流
+            // 2. 主页面大厅内容流
             Column(
                 modifier = Modifier
                     .fillMaxSize()
+                    .padding(
+                        top = innerPadding.calculateTopPadding(),
+                        bottom = innerPadding.calculateBottomPadding()
+                    )
                     .verticalScroll(rememberScrollState())
                     .padding(16.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                // 顶部玩家数据徽章
+                // 顶部状态栏
                 CharacterHeader(
                     stats = gameState.character,
                     day = gameState.day,
-                    timeLabel = gameState.timeOfDay.label
+                    timeLabel = gameState.timeOfDay.label,
+                    onHeaderClick = {
+                        showCharacterSheet = true // 点击状态栏：优雅拉出冒险者手账抽屉
+                    }
                 )
 
                 // 氛围叙事
                 NarrativeSection(timeOfDay = gameState.timeOfDay)
 
-                // 城镇互动节点
+                // 互动地标
                 InteractiveNodes(
                     gold = gameState.character.gold,
                     curableCurses = gameState.character.curableCurses,
@@ -123,7 +131,7 @@ fun TownHubScreen() {
                     }
                 )
 
-                // 悬赏任务公告栏
+                // 任务布告栏
                 BountyBoard(
                     quests = gameState.bounties,
                     onAcceptQuest = { id ->
@@ -138,7 +146,7 @@ fun TownHubScreen() {
 
                 Spacer(modifier = Modifier.height(12.dp))
 
-                // 出征大按钮
+                // 出征荒野
                 EmbarkButton(
                     onClick = {
                         Toast.makeText(context, "正在骰子检定... 正在推入荒野副本...", Toast.LENGTH_SHORT).show()
@@ -146,6 +154,39 @@ fun TownHubScreen() {
                 )
 
                 Spacer(modifier = Modifier.height(24.dp))
+            }
+
+            // 3. 原生底端抽屉版冒险者手账 (ModalBottomSheet Overlay)
+            // 当 showCharacterSheet 为 true 时挂载，弹出时直接 Expanded 全屏 [1.1.4]
+            if (showCharacterSheet) {
+                CharacterSheetOverlay(
+                    stats = gameState.character,
+                    onDismissRequest = { showCharacterSheet = false },
+                    onUseItem = { item ->
+                        when (item.id) {
+                            "i1" -> { // 生命药水
+                                val healedHp = minOf(gameState.character.hp + 30, gameState.character.maxHp)
+                                gameState = gameState.copy(
+                                    character = gameState.character.copy(hp = healedHp)
+                                )
+                                Toast.makeText(context, "你喝下了生命药水，伤口开始愈合 (HP+30)", Toast.LENGTH_SHORT).show()
+                            }
+                            "i2" -> { // 魔药
+                                val restoredMp = minOf(gameState.character.mp + 20, gameState.character.maxMp)
+                                gameState = gameState.copy(
+                                    character = gameState.character.copy(mp = restoredMp)
+                                )
+                                Toast.makeText(context, "你喝下了魔药，干涸的法力涌出 (MP+20)", Toast.LENGTH_SHORT).show()
+                            }
+                            "i3", "i4" -> { // 武器与装备
+                                Toast.makeText(context, "装备成功！获得了对应的跑团修正值检定加成。", Toast.LENGTH_SHORT).show()
+                            }
+                            else -> {
+                                Toast.makeText(context, "剧情道具无法在此刻直接使用。", Toast.LENGTH_SHORT).show()
+                            }
+                        }
+                    }
+                )
             }
         }
     }

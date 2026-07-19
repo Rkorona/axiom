@@ -1,122 +1,138 @@
 package com.example.myapplication.ui.components
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.myapplication.data.CharacterStats
-import com.example.myapplication.ui.theme.DarkRuby
-import com.example.myapplication.ui.theme.MagicMana
-import com.example.myapplication.ui.theme.MythicGold
+import com.example.myapplication.ui.theme.ArcanePrimary
+import com.example.myapplication.ui.theme.ArcanePrimaryDim
+import com.example.myapplication.ui.theme.BloodRose
+import com.example.myapplication.ui.theme.ManaTeal
+import com.example.myapplication.ui.theme.TreasureGold
+import com.example.myapplication.ui.theme.VoidBackground
 
 @Composable
 fun CharacterHeader(
     stats: CharacterStats,
     day: Int,
     timeLabel: String,
+    onHeaderClick: () -> Unit, // 新增：点击头像栏的回调事件
     modifier: Modifier = Modifier
 ) {
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.85f), RunicOctagonShape())
-            .border(1.dp, MythicGold.copy(alpha = 0.6f), RunicOctagonShape())
-            .padding(horizontal = 16.dp, vertical = 12.dp),
+            .clip(ExpressiveShapes.Card)
+            .background(
+                Brush.linearGradient(
+                    colors = listOf(
+                        MaterialTheme.colorScheme.surface,
+                        MaterialTheme.colorScheme.surfaceVariant
+                    )
+                )
+            )
+            .clickable { onHeaderClick() } // 新增：使顶部状态栏可以被点击
+            .padding(horizontal = 20.dp, vertical = 18.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // 左侧：等级与头像徽章
+        // 左侧：等级徽章 —— 圆角渐变 blob
         Box(
             modifier = Modifier
-                .size(48.dp)
-                .background(MythicGold.copy(alpha = 0.15f), RunicOctagonShape())
-                .border(1.dp, MythicGold, RunicOctagonShape()),
+                .size(56.dp)
+                .clip(ExpressiveShapes.Badge)
+                .background(
+                    Brush.linearGradient(
+                        colors = listOf(ArcanePrimary, ArcanePrimaryDim)
+                    )
+                ),
             contentAlignment = Alignment.Center
         ) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Text(
                     text = "LV",
-                    fontSize = 10.sp,
-                    color = MythicGold,
-                    fontWeight = FontWeight.Bold
+                    fontSize = 9.sp,
+                    color = VoidBackground.copy(alpha = 0.7f),
+                    fontWeight = FontWeight.ExtraBold
                 )
                 Text(
                     text = "${stats.level}",
-                    fontSize = 18.sp,
-                    color = MythicGold,
-                    fontFamily = FontFamily.Serif,
+                    fontSize = 22.sp,
+                    color = VoidBackground,
                     fontWeight = FontWeight.ExtraBold
                 )
             }
         }
 
-        Spacer(modifier = Modifier.width(12.dp))
+        Spacer(modifier = Modifier.width(14.dp))
 
-        // 中间：血条、蓝条与金币
+        // 中间：姓名、血条、蓝条
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = "${stats.name} · ${stats.title}",
                 color = MaterialTheme.colorScheme.onBackground,
-                fontFamily = FontFamily.Serif,
                 fontWeight = FontWeight.Bold,
-                fontSize = 14.sp
+                fontSize = 15.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
             )
-            Spacer(modifier = Modifier.height(4.dp))
+            Spacer(modifier = Modifier.height(8.dp))
 
-            // 生命条
-            RunicBar(
+            ExpressiveBar(
                 current = stats.hp,
                 max = stats.maxHp,
                 label = "HP",
-                color = DarkRuby
+                color = BloodRose
             )
-            Spacer(modifier = Modifier.height(3.dp))
+            Spacer(modifier = Modifier.height(4.dp))
 
-            // 魔法条
-            RunicBar(
+            ExpressiveBar(
                 current = stats.mp,
                 max = stats.maxMp,
                 label = "MP",
-                color = MagicMana
+                color = ManaTeal
             )
         }
 
-        Spacer(modifier = Modifier.width(12.dp))
+        Spacer(modifier = Modifier.width(14.dp))
 
-        // 右侧：时间与天数系统
+        // 右侧：时间、天数、金币
         Column(
             horizontalAlignment = Alignment.End
         ) {
             Text(
                 text = "第 $day 天",
-                fontFamily = FontFamily.Serif,
-                color = MythicGold,
-                fontWeight = FontWeight.Bold,
+                color = ArcanePrimary,
+                fontWeight = FontWeight.ExtraBold,
                 fontSize = 15.sp
             )
             Text(
                 text = timeLabel,
                 fontSize = 11.sp,
-                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f)
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
-            Spacer(modifier = Modifier.height(4.dp))
-            // 资产显示
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            Spacer(modifier = Modifier.height(6.dp))
+            Box(
+                modifier = Modifier
+                    .clip(ExpressiveShapes.Pill)
+                    .background(TreasureGold.copy(alpha = 0.15f))
+                    .padding(horizontal = 10.dp, vertical = 3.dp)
+            ) {
                 Text(
                     text = "🪙 ${stats.gold}",
-                    color = MythicGold,
+                    color = TreasureGold,
                     fontWeight = FontWeight.ExtraBold,
-                    fontFamily = FontFamily.Serif,
-                    fontSize = 14.sp
+                    fontSize = 13.sp
                 )
             }
         }
@@ -124,10 +140,10 @@ fun CharacterHeader(
 }
 
 /**
- * 具有跑团古典气质的状态槽
+ * 表现力风格的胶囊状态槽
  */
 @Composable
-private fun RunicBar(
+private fun ExpressiveBar(
     current: Int,
     max: Int,
     label: String,
@@ -141,31 +157,34 @@ private fun RunicBar(
         Text(
             text = label,
             fontSize = 10.sp,
-            fontWeight = FontWeight.Bold,
+            fontWeight = FontWeight.ExtraBold,
             color = color,
             modifier = Modifier.width(22.dp)
         )
         Box(
             modifier = Modifier
                 .weight(1f)
-                .height(6.dp)
-                .clip(RoundedCornerShape(3.dp))
-                .background(MaterialTheme.colorScheme.background)
-                .border(0.5.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(3.dp))
+                .height(8.dp)
+                .clip(ExpressiveShapes.Pill)
+                .background(MaterialTheme.colorScheme.onBackground.copy(alpha = 0.06f))
         ) {
             Box(
                 modifier = Modifier
                     .fillMaxHeight()
                     .fillMaxWidth(progress)
-                    .background(color)
+                    .clip(ExpressiveShapes.Pill)
+                    .background(
+                        Brush.horizontalGradient(
+                            colors = listOf(color, color.copy(alpha = 0.7f))
+                        )
+                    )
             )
         }
         Spacer(modifier = Modifier.width(6.dp))
         Text(
             text = "$current/$max",
             fontSize = 9.sp,
-            fontFamily = FontFamily.Serif,
-            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.8f)
+            color = MaterialTheme.colorScheme.onSurfaceVariant
         )
     }
 }

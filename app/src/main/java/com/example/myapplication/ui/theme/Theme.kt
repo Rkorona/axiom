@@ -4,16 +4,19 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
 
-private val FantasyColorScheme = darkColorScheme(
-    primary = MythicGold,
-    secondary = FireAmber,
-    tertiary = MagicMana,
-    background = BlackObsidian,
-    surface = DarkParchment,
-    onPrimary = BlackObsidian,
-    onBackground = SoftParchment,
-    onSurface = SoftParchment,
-    outline = LeatherBrown
+private val ExpressiveColorScheme = darkColorScheme(
+    primary = ArcanePrimary,
+    secondary = EmberOrange,
+    tertiary = ManaTeal,
+    background = VoidBackground,
+    surface = SurfaceElevated,
+    surfaceVariant = SurfaceSunken,
+    error = BloodRose,
+    onPrimary = VoidBackground,
+    onBackground = TextPrimary,
+    onSurface = TextPrimary,
+    onSurfaceVariant = TextMuted,
+    outline = TextMuted
 )
 
 @Composable
@@ -21,7 +24,7 @@ fun MyApplicationTheme(
     content: @Composable () -> Unit
 ) {
     MaterialTheme(
-        colorScheme = FantasyColorScheme,
+        colorScheme = ExpressiveColorScheme,
         typography = Typography,
         content = content
     )
