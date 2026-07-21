@@ -13,7 +13,6 @@ import androidx.compose.foundation.background
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -88,41 +87,63 @@ fun HomeScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val focusManager = LocalFocusManager.current
+    val focused = uiState.isCommandBarFocused
 
     // Intercept back press while search is active: collapse the bar instead of
     // exiting the app.
-    BackHandler(enabled = uiState.isCommandBarFocused) {
+    BackHandler(enabled = focused) {
         focusManager.clearFocus()
     }
 
-    BoxWithConstraints(
+    // Animate spacer weights: spring the bar toward the top when focused so
+    // the results panel fills the space between the bar and the keyboard.
+    val topWeight by animateFloatAsState(
+        targetValue   = if (focused) 0.04f else 1.2f,
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioMediumBouncy,
+            stiffness    = Spring.StiffnessMediumLow
+        ),
+        label = "top-spacer-weight"
+    )
+    val midWeight by animateFloatAsState(
+        targetValue   = if (focused) 0.02f else 0.6f,
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioMediumBouncy,
+            stiffness    = Spring.StiffnessMediumLow
+        ),
+        label = "mid-spacer-weight"
+    )
+
+    Box(
         modifier = Modifier
             .fillMaxSize()
             .background(AxiomInk)
     ) {
-        val screenHeight = maxHeight
-
         // ── Layer 1: Animated deep-space background ───────────────────────────
         AnimatedBackground(commandMode = uiState.commandMode)
 
-        // ── Layer 2: Main content ─────────────────────────────────────────────
+        // ── Layer 2: Single column — search bar + inline results ──────────────
+        // ResultsPanel lives here (not as a floating overlay) so it can never
+        // overlap the bar and always fills exactly the space above the keyboard.
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
             modifier            = Modifier
                 .fillMaxSize()
                 .statusBarsPadding()
                 .navigationBarsPadding()
-                .imePadding()   // shift content up when keyboard appears
+                .imePadding()
         ) {
-            Spacer(Modifier.weight(1.2f))
+            // Top spacer: large when idle, collapses to near-zero when focused
+            Spacer(Modifier.weight(topWeight.coerceAtLeast(0.0001f)))
 
             // ── Hero greeting ─────────────────────────────────────────────────
             HeroGreeting(
                 text      = uiState.greetingText,
-                isVisible = !uiState.isCommandBarFocused && uiState.query.isEmpty()
+                isVisible = !focused && uiState.query.isEmpty()
             )
 
-            Spacer(Modifier.weight(0.6f))
+            // Mid spacer: collapses when focused
+            Spacer(Modifier.weight(midWeight.coerceAtLeast(0.0001f)))
 
             // ── Command stage: wings + bar ────────────────────────────────────
             CommandStage(
@@ -133,29 +154,32 @@ fun HomeScreen(
                 onFileClick   = { /* open file */ }
             )
 
-            Spacer(Modifier.weight(0.6f))
-
             // ── Mode hint row (> commands · # symbols) ────────────────────────
-            ModeHints(isVisible = !uiState.isCommandBarFocused && uiState.query.isEmpty())
+            ModeHints(isVisible = !focused && uiState.query.isEmpty())
 
-            Spacer(Modifier.weight(1.4f))
+            // ── Bottom slot ───────────────────────────────────────────────────
+            // Always weight(1.4f) to match original idle proportions.
+            // Empty when idle; holds the results panel when searching.
+            // Structural impossibility of ever overlapping the bar above.
+            Box(
+                modifier = Modifier
+                    .weight(1.4f)
+                    .fillMaxWidth()
+            ) {
+                ResultsPanel(
+                    groupedResults = uiState.groupedResults,
+                    commandMode    = uiState.commandMode,
+                    isSearching    = uiState.isSearching,
+                    showEmptyState = uiState.showEmptyState,
+                    visible        = focused &&
+                                     (uiState.query.isNotEmpty() ||
+                                      !uiState.groupedResults.isEmpty),
+                    onFileClick    = { /* open file */ },
+                    onCommandClick = { /* execute command */ },
+                    modifier       = Modifier.fillMaxSize()
+                )
+            }
         }
-
-        // ── Layer 3: Results panel (overlays from bottom) ─────────────────────
-        ResultsPanel(
-            groupedResults = uiState.groupedResults,
-            commandMode    = uiState.commandMode,
-            isSearching    = uiState.isSearching,
-            showEmptyState = uiState.showEmptyState,
-            visible        = uiState.isCommandBarFocused &&
-                             (uiState.query.isNotEmpty() || !uiState.groupedResults.isEmpty),
-            onFileClick    = { /* open file */ },
-            onCommandClick = { /* execute command */ },
-            modifier       = Modifier
-                .align(Alignment.BottomCenter)
-                .fillMaxWidth()
-                .height(screenHeight * 0.62f)
-        )
     }
 }
 

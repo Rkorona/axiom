@@ -214,7 +214,7 @@ private fun ResultsList(
             }
         }
 
-        item { Spacer(Modifier.height(96.dp)) } // nav bar clearance
+        item { Spacer(Modifier.height(16.dp)) } // breathing room; nav bar handled by outer Column
     }
 }
 
