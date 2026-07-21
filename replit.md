@@ -63,6 +63,54 @@ app/src/main/java/io/axiom/
 - `>` prefix → execute commands (coral accent)
 - `#` prefix → jump to symbol (mint accent)
 
+## Architecture (Updated)
+
+```
+app/src/main/java/io/axiom/
+├── data/
+│   ├── model/
+│   │   ├── FileItem.kt           Domain models for files/search
+│   │   └── Project.kt            Project domain model (id, name, rootUri, language…)
+│   ├── db/
+│   │   ├── ProjectEntity.kt      Room entity (projects table)
+│   │   ├── ProjectDao.kt         Room DAO (Flow-based queries)
+│   │   └── AxiomDatabase.kt      Singleton Room DB
+│   ├── repository/
+│   │   └── ProjectRepository.kt  createProject / importProject / pin / delete
+│   └── util/
+│       └── FileSystemUtils.kt    detectLanguage / createProjectDir / timeAgo
+├── ui/
+│   ├── home/
+│   │   ├── HomeUiState.kt        +recentProjects, +showNewProjectDialog
+│   │   ├── HomeViewModel.kt      AndroidViewModel + ProjectRepository; HomeSideEffect
+│   │   └── HomeScreen.kt        SAF launcher, ProjectsPanel + ResultsPanel dual-slot
+│   └── components/
+│       ├── ProjectCard.kt        ProjectCard (strip card) + ProjectWingChip
+│       ├── RecentProjectsWings.kt Wings with project chips (home idle state)
+│       ├── ProjectsPanel.kt      Idle bottom panel with staggered project list
+│       └── NewProjectDialog.kt   ModalBottomSheet for creating a project
+```
+
+## Home Screen State Machine
+
+```
+① Idle (no project open)
+   Wings  = recent project chips
+   Bottom = ProjectsPanel (project cards, staggered entrance)
+
+② Search active (bar focused)
+   Wings  = collapse off-screen
+   Bottom = ResultsPanel (files / commands / symbols)
+
+③ In-project (future)
+   Wings  = current project's recent files
+   Bottom = file tree / editor tabs
+```
+
+## Project Storage (Hybrid)
+- **New project** → `getExternalFilesDir("projects")/<name>/` — no permission needed
+- **Import folder** → SAF `ACTION_OPEN_DOCUMENT_TREE` + `takePersistableUriPermission()` — survives restarts
+
 ## Running the Project
 
 This is an Android project — open in **Android Studio** or build via Gradle:

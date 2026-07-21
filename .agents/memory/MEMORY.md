@@ -1,0 +1,1 @@
+- [Axiom project architecture](axiom-project-arch.md) — Room + ProjectRepository data layer added; home screen has dual-panel bottom slot (ProjectsPanel idle / ResultsPanel searching)

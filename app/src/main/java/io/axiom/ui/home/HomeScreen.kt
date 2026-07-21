@@ -1,5 +1,8 @@
 package io.axiom.ui.home
 
+import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
@@ -11,9 +14,6 @@ import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.activity.compose.BackHandler
-import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.graphics.Color
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -37,11 +37,13 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
-import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -50,9 +52,12 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import io.axiom.data.model.AppCommand
 import io.axiom.data.model.FileItem
+import io.axiom.data.model.Project
 import io.axiom.ui.components.AnimatedBackground
 import io.axiom.ui.components.CommandBar
-import io.axiom.ui.components.RecentFilesWing
+import io.axiom.ui.components.NewProjectDialog
+import io.axiom.ui.components.ProjectsPanel
+import io.axiom.ui.components.RecentProjectsWing
 import io.axiom.ui.components.ResultsPanel
 import io.axiom.ui.components.WingSide
 import io.axiom.ui.theme.AxiomFileModeColor
@@ -65,23 +70,19 @@ import kotlinx.coroutines.delay
 /**
  * The Axiom home screen — the "Command Stage" layout.
  *
- * Full-screen composition:
+ * Home screen state machine:
  * ```
- * ┌──────────────────────────────────────────┐  ← status bar
- * │                                          │
- * │          [ Greeting text ]               │  ← hero area (fades on focus)
- * │                                          │
- * │  [.kt] [.ts]  [ 🔍  Search… ]  [.py] [.md] │  ← command stage
- * │                                          │
- * │       [ > commands  #symbols ]           │  ← mode hints (fades on focus)
- * │                                          │
- * ├──────────────────────────────────────────┤  ← results panel slides up
- * │  FILES                                   │
- * │  ┌─ MainActivity.kt  ──────────── Kotlin ┐│
- * │  └─ HomeScreen.kt    ──────────── Kotlin ┘│
- * │  COMMANDS                                │
- * │  ┌─ New File  ──────────────────── ⌘N   ┐│
- * └──────────────────────────────────────────┘  ← nav bar
+ * ① Idle (no project open, bar unfocused)
+ *    Wings  = recent project chips
+ *    Bottom = ProjectsPanel (recent project cards)
+ *
+ * ② Search active (bar focused + query entered)
+ *    Wings  = collapse off-screen
+ *    Bottom = ResultsPanel (files / commands / symbols)
+ *
+ * ③ In-project (future)
+ *    Wings  = current project's recent files
+ *    Bottom = file tree / editor tabs
  * ```
  */
 @Composable
@@ -91,6 +92,27 @@ fun HomeScreen(
     val uiState by viewModel.uiState.collectAsState()
     val focusManager = LocalFocusManager.current
     val focused = uiState.isCommandBarFocused
+
+    // ── SAF folder picker ─────────────────────────────────────────────────────
+    val folderPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocumentTree()
+    ) { uri ->
+        if (uri != null) {
+            // Derive a display name from the URI's last path segment
+            val raw  = uri.lastPathSegment ?: uri.toString()
+            val name = raw.substringAfterLast(':').substringAfterLast('/').ifBlank { "Imported Project" }
+            viewModel.onFolderSelected(name, uri.toString())
+        }
+    }
+
+    // ── Collect one-shot side effects ─────────────────────────────────────────
+    LaunchedEffect(Unit) {
+        viewModel.sideEffects.collect { effect ->
+            when (effect) {
+                HomeSideEffect.OpenFolderPicker -> folderPickerLauncher.launch(null)
+            }
+        }
+    }
 
     // Intercept back press while search is active: collapse the bar instead of
     // exiting the app.
@@ -117,8 +139,7 @@ fun HomeScreen(
         label = "mid-spacer-weight"
     )
 
-    // Scrim: fades in behind content when focused to signal "focused mode" and
-    // visually communicate that the dark empty area is a tap-to-dismiss target.
+    // Scrim: fades in behind content when focused.
     val scrimAlpha by animateFloatAsState(
         targetValue   = if (focused) 0.38f else 0f,
         animationSpec = spring(
@@ -132,9 +153,6 @@ fun HomeScreen(
         modifier = Modifier
             .fillMaxSize()
             .background(AxiomInk)
-            // Tap on any empty area (not consumed by a child) dismisses search.
-            // Children (result rows, command bar buttons) consume their own taps
-            // first, so this only fires in genuinely empty space.
             .pointerInput(focused) {
                 if (focused) detectTapGestures { focusManager.clearFocus() }
             }
@@ -142,10 +160,7 @@ fun HomeScreen(
         // ── Layer 1: Animated deep-space background ───────────────────────────
         AnimatedBackground(commandMode = uiState.commandMode)
 
-        // ── Layer 2: Scrim — visual only, no pointer interception ─────────────
-        // Sits between the background and the content column so it dims the
-        // ambient glow when the user is in search mode without blocking taps to
-        // result items or the command bar.
+        // ── Layer 2: Scrim ────────────────────────────────────────────────────
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -153,8 +168,6 @@ fun HomeScreen(
         )
 
         // ── Layer 3: Single column — search bar + inline results ──────────────
-        // ResultsPanel lives here (not as a floating overlay) so it can never
-        // overlap the bar and always fills exactly the space above the keyboard.
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
             modifier            = Modifier
@@ -163,7 +176,6 @@ fun HomeScreen(
                 .navigationBarsPadding()
                 .imePadding()
         ) {
-            // Top spacer: large when idle, collapses to near-zero when focused
             Spacer(Modifier.weight(topWeight.coerceAtLeast(0.0001f)))
 
             // ── Hero greeting ─────────────────────────────────────────────────
@@ -172,30 +184,43 @@ fun HomeScreen(
                 isVisible = !focused && uiState.query.isEmpty()
             )
 
-            // Mid spacer: collapses when focused
             Spacer(Modifier.weight(midWeight.coerceAtLeast(0.0001f)))
 
             // ── Command stage: wings + bar ────────────────────────────────────
             CommandStage(
-                uiState       = uiState,
-                onQueryChange = viewModel::onQueryChange,
-                onFocusChange = viewModel::onCommandBarFocusChange,
-                onClear       = viewModel::onClearQuery,
-                onFileClick   = { /* open file */ }
+                uiState        = uiState,
+                onQueryChange  = viewModel::onQueryChange,
+                onFocusChange  = viewModel::onCommandBarFocusChange,
+                onClear        = viewModel::onClearQuery,
+                onProjectClick = viewModel::onProjectClick
             )
 
             // ── Mode hint row (> commands · # symbols) ────────────────────────
             ModeHints(isVisible = !focused && uiState.query.isEmpty())
 
             // ── Bottom slot ───────────────────────────────────────────────────
-            // Always weight(1.4f) to match original idle proportions.
-            // Empty when idle; holds the results panel when searching.
-            // Structural impossibility of ever overlapping the bar above.
+            // Weight stays constant so layout never jumps.
+            // ProjectsPanel fills this slot when idle.
+            // ResultsPanel takes over when the bar is focused + query is active.
             Box(
                 modifier = Modifier
                     .weight(1.4f)
                     .fillMaxWidth()
             ) {
+                // Idle project list — visible when bar is unfocused and no query
+                ProjectsPanel(
+                    projects       = uiState.recentProjects,
+                    visible        = !focused && uiState.query.isEmpty(),
+                    onProjectClick = viewModel::onProjectClick,
+                    onNewProject   = {
+                        viewModel.onCommandClick(
+                            AppCommand(id = "new_project", title = "New Project", description = "")
+                        )
+                    },
+                    modifier       = Modifier.fillMaxSize()
+                )
+
+                // Search results — visible when bar is focused
                 ResultsPanel(
                     groupedResults = uiState.groupedResults,
                     commandMode    = uiState.commandMode,
@@ -204,12 +229,20 @@ fun HomeScreen(
                     visible        = focused &&
                                      (uiState.query.isNotEmpty() ||
                                       !uiState.groupedResults.isEmpty),
-                    onFileClick    = { /* open file */ },
-                    onCommandClick = { /* execute command */ },
+                    onFileClick    = { /* TODO: open file in editor */ },
+                    onCommandClick = viewModel::onCommandClick,
                     modifier       = Modifier.fillMaxSize()
                 )
             }
         }
+    }
+
+    // ── New Project Dialog ────────────────────────────────────────────────────
+    if (uiState.showNewProjectDialog) {
+        NewProjectDialog(
+            onDismiss = viewModel::onDismissNewProjectDialog,
+            onCreate  = viewModel::onCreateProject
+        )
     }
 }
 
@@ -220,7 +253,6 @@ private fun HeroGreeting(
     text: String,
     isVisible: Boolean
 ) {
-    // Entrance: slides down from slightly above and fades in on first launch
     var hasEnteredOnce by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) {
         delay(200)
@@ -247,7 +279,6 @@ private fun HeroGreeting(
             .graphicsLayer { this.alpha = alpha; translationY = translateY }
             .padding(horizontal = 32.dp)
     ) {
-        // Subtle pill label above the headline
         Box(
             modifier = Modifier
                 .clip(RoundedCornerShape(100.dp))
@@ -301,8 +332,7 @@ private fun HeroGreeting(
 
 // ── Command Stage ─────────────────────────────────────────────────────────────
 
-private val COMPACT_BAR_FRACTION = 0.56f  // fraction of total width in idle state
-private val WING_FRACTION        = 0.20f  // each wing's fraction in idle state
+private val WING_FRACTION = 0.20f
 
 @Composable
 private fun CommandStage(
@@ -310,11 +340,10 @@ private fun CommandStage(
     onQueryChange: (String) -> Unit,
     onFocusChange: (Boolean) -> Unit,
     onClear: () -> Unit,
-    onFileClick: (FileItem) -> Unit
+    onProjectClick: (Project) -> Unit
 ) {
     val isExpanded = uiState.isCommandBarFocused
 
-    // Animate the relative weight of each wing (0 when expanded, WING_FRACTION when idle)
     val wingWeightFraction by animateFloatAsState(
         targetValue   = if (isExpanded) 0.001f else WING_FRACTION,
         animationSpec = spring(
@@ -329,30 +358,28 @@ private fun CommandStage(
         label         = "wing-alpha"
     )
 
-    // Clamp animated weight to always be > 0; a bouncy spring can transiently
-    // overshoot past zero, which would cause Modifier.weight() to crash.
-    val safeWingWeight  = wingWeightFraction.coerceAtLeast(0.0001f)
+    val safeWingWeight   = wingWeightFraction.coerceAtLeast(0.0001f)
     val safeCenterWeight = (1f - safeWingWeight * 2).coerceAtLeast(0.0001f)
 
     Row(
         verticalAlignment     = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp),  // gap between wings and bar
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
         modifier              = Modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp)
     ) {
-        // ── Left wing ─────────────────────────────────────────────────────────
+        // ── Left wing — recent project chips ──────────────────────────────────
         Box(
             contentAlignment = Alignment.CenterEnd,
             modifier         = Modifier
                 .weight(safeWingWeight)
                 .graphicsLayer { alpha = wingAlpha }
         ) {
-            RecentFilesWing(
-                files                = uiState.recentFiles.take(3),
+            RecentProjectsWing(
+                projects             = uiState.recentProjects.take(3),
                 side                 = WingSide.LEFT,
                 isCommandBarExpanded = isExpanded,
-                onFileClick          = onFileClick
+                onProjectClick       = onProjectClick
             )
         }
 
@@ -369,18 +396,18 @@ private fun CommandStage(
             modifier         = Modifier.weight(safeCenterWeight)
         )
 
-        // ── Right wing ────────────────────────────────────────────────────────
+        // ── Right wing — recent project chips ─────────────────────────────────
         Box(
             contentAlignment = Alignment.CenterStart,
             modifier         = Modifier
                 .weight(safeWingWeight)
                 .graphicsLayer { alpha = wingAlpha }
         ) {
-            RecentFilesWing(
-                files                = uiState.recentFiles.drop(3).take(3),
+            RecentProjectsWing(
+                projects             = uiState.recentProjects.drop(3).take(3),
                 side                 = WingSide.RIGHT,
                 isCommandBarExpanded = isExpanded,
-                onFileClick          = onFileClick
+                onProjectClick       = onProjectClick
             )
         }
     }

@@ -3,7 +3,7 @@ package io.axiom.ui.home
 import io.axiom.data.model.CommandMode
 import io.axiom.data.model.FileItem
 import io.axiom.data.model.GroupedResults
-import io.axiom.data.model.SearchResult
+import io.axiom.data.model.Project
 
 /**
  * Immutable snapshot of everything the Home screen needs to render.
@@ -19,11 +19,14 @@ data class HomeUiState(
     /** Derived from query prefix: FILE by default, COMMAND on '>', SYMBOL on '#'. */
     val commandMode: CommandMode = CommandMode.FILE,
 
-    /** The six most recently opened files — shown as wings when idle. */
+    /** The six most recently opened files — shown as wings when inside a project. */
     val recentFiles: List<FileItem> = emptyList(),
 
     /** Files the user has explicitly pinned to the top. */
     val pinnedFiles: List<FileItem> = emptyList(),
+
+    /** Recent projects from the database — shown as wings and cards on the home screen. */
+    val recentProjects: List<Project> = emptyList(),
 
     /** Live search results, grouped by result type for section rendering. */
     val groupedResults: GroupedResults = GroupedResults(),
@@ -41,7 +44,13 @@ data class HomeUiState(
     val placeholderIndex: Int = 0,
 
     /** Whether the "no results" empty state should be displayed. */
-    val showEmptyState: Boolean = false
+    val showEmptyState: Boolean = false,
+
+    /** Whether the New Project bottom-sheet dialog is open. */
+    val showNewProjectDialog: Boolean = false,
+
+    /** True while a project is being created in the background. */
+    val isCreatingProject: Boolean = false
 )
 
 /** Placeholder hints that cycle in the Command Bar when it's idle. */
