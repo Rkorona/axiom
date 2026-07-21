@@ -57,7 +57,7 @@ import io.axiom.ui.components.AnimatedBackground
 import io.axiom.ui.components.CommandBar
 import io.axiom.ui.components.NewProjectDialog
 import io.axiom.ui.components.ProjectsPanel
-import io.axiom.ui.components.RecentProjectsWing
+import io.axiom.ui.components.RecentFilesWing
 import io.axiom.ui.components.ResultsPanel
 import io.axiom.ui.components.WingSide
 import io.axiom.ui.theme.AxiomFileModeColor
@@ -188,11 +188,11 @@ fun HomeScreen(
 
             // ── Command stage: wings + bar ────────────────────────────────────
             CommandStage(
-                uiState        = uiState,
-                onQueryChange  = viewModel::onQueryChange,
-                onFocusChange  = viewModel::onCommandBarFocusChange,
-                onClear        = viewModel::onClearQuery,
-                onProjectClick = viewModel::onProjectClick
+                uiState       = uiState,
+                onQueryChange = viewModel::onQueryChange,
+                onFocusChange = viewModel::onCommandBarFocusChange,
+                onClear       = viewModel::onClearQuery,
+                onFileClick   = { /* TODO: open file in editor */ }
             )
 
             // ── Mode hint row (> commands · # symbols) ────────────────────────
@@ -340,7 +340,7 @@ private fun CommandStage(
     onQueryChange: (String) -> Unit,
     onFocusChange: (Boolean) -> Unit,
     onClear: () -> Unit,
-    onProjectClick: (Project) -> Unit
+    onFileClick: (FileItem) -> Unit
 ) {
     val isExpanded = uiState.isCommandBarFocused
 
@@ -368,18 +368,18 @@ private fun CommandStage(
             .fillMaxWidth()
             .padding(horizontal = 16.dp)
     ) {
-        // ── Left wing — recent project chips ──────────────────────────────────
+        // ── Left wing — recent file chips ─────────────────────────────────────
         Box(
             contentAlignment = Alignment.CenterEnd,
             modifier         = Modifier
                 .weight(safeWingWeight)
                 .graphicsLayer { alpha = wingAlpha }
         ) {
-            RecentProjectsWing(
-                projects             = uiState.recentProjects.take(3),
+            RecentFilesWing(
+                files                = uiState.recentFiles.take(3),
                 side                 = WingSide.LEFT,
                 isCommandBarExpanded = isExpanded,
-                onProjectClick       = onProjectClick
+                onFileClick          = onFileClick
             )
         }
 
@@ -396,18 +396,18 @@ private fun CommandStage(
             modifier         = Modifier.weight(safeCenterWeight)
         )
 
-        // ── Right wing — recent project chips ─────────────────────────────────
+        // ── Right wing — recent file chips ────────────────────────────────────
         Box(
             contentAlignment = Alignment.CenterStart,
             modifier         = Modifier
                 .weight(safeWingWeight)
                 .graphicsLayer { alpha = wingAlpha }
         ) {
-            RecentProjectsWing(
-                projects             = uiState.recentProjects.drop(3).take(3),
+            RecentFilesWing(
+                files                = uiState.recentFiles.drop(3).take(3),
                 side                 = WingSide.RIGHT,
                 isCommandBarExpanded = isExpanded,
-                onProjectClick       = onProjectClick
+                onFileClick          = onFileClick
             )
         }
     }
