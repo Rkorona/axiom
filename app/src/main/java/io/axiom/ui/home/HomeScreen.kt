@@ -264,6 +264,11 @@ private fun CommandStage(
         label         = "wing-alpha"
     )
 
+    // Clamp animated weight to always be > 0; a bouncy spring can transiently
+    // overshoot past zero, which would cause Modifier.weight() to crash.
+    val safeWingWeight  = wingWeightFraction.coerceAtLeast(0.0001f)
+    val safeCenterWeight = (1f - safeWingWeight * 2).coerceAtLeast(0.0001f)
+
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier          = Modifier
@@ -274,7 +279,7 @@ private fun CommandStage(
         Box(
             contentAlignment = Alignment.CenterEnd,
             modifier         = Modifier
-                .weight(wingWeightFraction)
+                .weight(safeWingWeight)
                 .graphicsLayer { alpha = wingAlpha }
         ) {
             RecentFilesWing(
@@ -295,14 +300,14 @@ private fun CommandStage(
             onQueryChange    = onQueryChange,
             onFocusChange    = onFocusChange,
             onClear          = onClear,
-            modifier         = Modifier.weight(1f - wingWeightFraction * 2)
+            modifier         = Modifier.weight(safeCenterWeight)
         )
 
         // ── Right wing ────────────────────────────────────────────────────────
         Box(
             contentAlignment = Alignment.CenterStart,
             modifier         = Modifier
-                .weight(wingWeightFraction)
+                .weight(safeWingWeight)
                 .graphicsLayer { alpha = wingAlpha }
         ) {
             RecentFilesWing(
