@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
@@ -154,7 +155,7 @@ fun EditorScreen(
                 onSave   = viewModel::saveCurrentFile
             )
 
-            // Editor surface — Results panel overlays this area when command bar is focused
+            // Editor surface — shrinks naturally when the results panel is visible below it
             Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
                 when {
                     uiState.isLoadingContent -> LoadingOverlay()
@@ -164,19 +165,22 @@ fun EditorScreen(
                     )
                     else                     -> EditorEmptyState(isLoadingFiles = uiState.isLoadingFiles)
                 }
-
-                // Results panel slides up over the editor surface when searching
-                ResultsPanel(
-                    groupedResults = uiState.groupedResults,
-                    commandMode    = uiState.commandMode,
-                    isSearching    = uiState.isSearching,
-                    showEmptyState = uiState.showEmptyState,
-                    visible        = focused && (uiState.query.isNotEmpty() || !uiState.groupedResults.isEmpty),
-                    onFileClick    = viewModel::onFileClick,
-                    onCommandClick = viewModel::onCommandClick,
-                    modifier       = Modifier.fillMaxSize()
-                )
             }
+
+            // Results panel — sits directly above the CommandBar so results slide up
+            // from the bar rather than appearing at the top of the screen.
+            ResultsPanel(
+                groupedResults = uiState.groupedResults,
+                commandMode    = uiState.commandMode,
+                isSearching    = uiState.isSearching,
+                showEmptyState = uiState.showEmptyState,
+                visible        = focused && (uiState.query.isNotEmpty() || !uiState.groupedResults.isEmpty),
+                onFileClick    = viewModel::onFileClick,
+                onCommandClick = viewModel::onCommandClick,
+                modifier       = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 360.dp)
+            )
 
             // Command bar — B2 primary operation surface, always present at bottom
             // Plan C: sharedElement shares this bar with the home-screen CommandBar
