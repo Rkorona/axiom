@@ -1,5 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
 
-    <style name="Theme.Axiom" parent="android:Theme.Material.Light.NoActionBar" />
+    <!--
+        Use the dark Material baseline — NOT the Light variant — so the system
+        window background is dark (#0C0E14) rather than white.  Without this,
+        the slide-up transition between Home and Editor reveals the white window
+        background for the ~300 ms before Compose has finished painting.
+    -->
+    <style name="Theme.Axiom" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/axiom_ink</item>
+    </style>
+
 </resources>

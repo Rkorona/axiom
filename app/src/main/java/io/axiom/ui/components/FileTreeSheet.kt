@@ -14,8 +14,10 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
@@ -101,11 +103,16 @@ fun FileTreeSheet(
     bottomPaddingDp: Float = 0f,
     onFileClick: (FileItem) -> Unit
 ) {
+    // Navigation bar height in px — BoxWithConstraints receives the full display
+    // height (no insets stripped), so collapsedOffset must add this on top of
+    // bottomPaddingDp to keep the peek strip above the command bar.
+    val navBarPx = WindowInsets.navigationBars.getBottom(LocalDensity.current)
+
     BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
         val density       = LocalDensity.current
         val fullHeightPx  = with(density) { maxHeight.toPx() }
         val peekPx        = with(density) { (TREE_HANDLE_H + TREE_PEEK_H + TREE_DIVIDER_H).toPx() }
-        val extraPx       = with(density) { bottomPaddingDp.dp.toPx() }
+        val extraPx       = with(density) { bottomPaddingDp.dp.toPx() } + navBarPx
 
         // Content-fitted expanded height
         val grouped = remember(files) { groupByDirectory(files) }
