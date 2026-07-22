@@ -12,7 +12,7 @@ material3 = "1.5.0-alpha23"
 room = "2.7.1"
 ksp = "2.3.9"
 navigationCompose = "2.9.0"
-soraEditor = "0.23.4"
+soraEditorBom = "0.24.4"
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
 junit = { group = "junit", name = "junit", version.ref = "junit" }
@@ -34,7 +34,9 @@ androidx-room-runtime = { group = "androidx.room", name = "room-runtime", versio
 androidx-room-ktx = { group = "androidx.room", name = "room-ktx", version.ref = "room" }
 androidx-room-compiler = { group = "androidx.room", name = "room-compiler", version.ref = "room" }
 androidx-navigation-compose = { group = "androidx.navigation", name = "navigation-compose", version.ref = "navigationCompose" }
-sora-editor = { group = "io.github.Rosemoe.sora-editor", name = "editor", version.ref = "soraEditor" }
+sora-bom = { group = "io.github.rosemoe", name = "editor-bom", version.ref = "soraEditorBom" }
+sora-editor = { group = "io.github.rosemoe", name = "editor", version.ref = "soraEditorBom" }
+sora-editor-language-textmate = { group = "io.github.rosemoe", name = "language-textmate", version.ref = "soraEditorBom" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

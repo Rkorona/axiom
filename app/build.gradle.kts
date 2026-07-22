@@ -64,7 +64,9 @@ dependencies {
     implementation(libs.androidx.room.ktx)
     ksp(libs.androidx.room.compiler)
     implementation(libs.androidx.navigation.compose)
+    implementation(platform(libs.sora.bom))
     implementation(libs.sora.editor)
+    implementation(libs.sora.editor.language.textmate)
 
     testImplementation(libs.junit)
     androidTestImplementation(platform(libs.androidx.compose.bom))

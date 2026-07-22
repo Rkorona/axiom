@@ -41,10 +41,6 @@ class AxiomEditorColorScheme : EditorColorScheme() {
         // ── Find / match highlight ─────────────────────────────────────────────
         setColor(MATCHED_TEXT_BACKGROUND,    0x3300DDB3)         // AxiomMint  @20 %
 
-        // ── Auto-complete popup ────────────────────────────────────────────────
-        setColor(AUTO_COMP_PANEL_BACKGROUND, 0xFF10121A.toInt()) // AxiomVoid
-        setColor(AUTO_COMP_PANEL_CORNER,     0xFF22253A.toInt()) // AxiomDusk
-
         // ── Syntax tokens (used when a language is attached) ───────────────────
         setColor(KEYWORD,                    0xFF7B68EE.toInt()) // AxiomViolet
         setColor(OPERATOR,                   0xFFEAEBF5.toInt()) // AxiomTextPrimary
@@ -52,13 +48,14 @@ class AxiomEditorColorScheme : EditorColorScheme() {
         setColor(IDENTIFIER_NAME,            0xFFEAEBF5.toInt()) // AxiomTextPrimary
         setColor(IDENTIFIER_VAR,             0xFFEAEBF5.toInt()) // AxiomTextPrimary
         setColor(LITERAL,                    0xFFFF6B8A.toInt()) // AxiomCoral — numbers
-        setColor(STRING,                     0xFF00DDB3.toInt()) // AxiomMint  — strings
         setColor(COMMENT,                    0xFF4A4D68.toInt()) // AxiomTextDisabled
         setColor(ANNOTATION,                 0xFFFF6B8A.toInt()) // AxiomCoral
 
         // ── Diagnostics ────────────────────────────────────────────────────────
         setColor(PROBLEM_ERROR,              0xFFFF5370.toInt()) // AxiomError
         setColor(PROBLEM_WARNING,            0xFFFFC66D.toInt()) // AxiomWarning
-        setColor(PROBLEM_INFO,               0xFF82AAFF.toInt()) // AxiomInfo
+        // Note: AUTO_COMP_PANEL_*, STRING, and PROBLEM_INFO were removed in
+        // sora-editor 0.24.x. TextMate string colours are defined via scope
+        // selectors when language-textmate grammars are wired up.
     }
 }
