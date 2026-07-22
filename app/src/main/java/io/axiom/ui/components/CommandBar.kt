@@ -31,6 +31,7 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.FolderOpen
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
@@ -72,6 +73,7 @@ import io.axiom.ui.theme.AxiomSlate
 import io.axiom.ui.theme.AxiomSymbolModeColor
 import io.axiom.ui.theme.AxiomTextDisabled
 import io.axiom.ui.theme.AxiomTextPrimary
+import io.axiom.ui.theme.AxiomViolet
 import io.axiom.ui.theme.AxiomVoid
 
 /**
@@ -95,6 +97,9 @@ import io.axiom.ui.theme.AxiomVoid
  * @param onFocusChange      Called when focus state changes.
  * @param hints              Cycling placeholder strings. Defaults to [commandBarHints].
  * @param onClear            Called when the ✕ button is pressed.
+ * @param onFileTreeClick    When non-null, shows a folder icon button on the left that
+ *                           opens the file tree. Pass null (default) to hide the button
+ *                           (e.g. on the home screen where there is no project open).
  */
 @Composable
 fun CommandBar(
@@ -107,6 +112,7 @@ fun CommandBar(
     onQueryChange: (String) -> Unit,
     onFocusChange: (Boolean) -> Unit,
     onClear: () -> Unit,
+    onFileTreeClick: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val keyboard = LocalSoftwareKeyboardController.current
@@ -232,7 +238,30 @@ fun CommandBar(
                     .height(barHeight)
                     .padding(horizontal = 18.dp)
             ) {
-                // ── Mode indicator (left) ─────────────────────────────────────
+                // ── Folder button (editor only — hidden on home screen) ────────
+                if (onFileTreeClick != null) {
+                    IconButton(
+                        onClick  = onFileTreeClick,
+                        modifier = Modifier.size(32.dp)
+                    ) {
+                        Icon(
+                            imageVector        = Icons.Rounded.FolderOpen,
+                            contentDescription = "Browse files",
+                            tint               = AxiomViolet.copy(alpha = 0.75f),
+                            modifier           = Modifier.size(17.dp)
+                        )
+                    }
+                    // Thin vertical divider
+                    Box(
+                        modifier = Modifier
+                            .width(1.dp)
+                            .height(16.dp)
+                            .background(AxiomMist.copy(alpha = 0.25f))
+                    )
+                    Spacer(Modifier.width(8.dp))
+                }
+
+                // ── Mode indicator ────────────────────────────────────────────
                 CommandModeIndicator(
                     mode        = commandMode,
                     accentColor = modeAccentColor

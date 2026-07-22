@@ -83,13 +83,43 @@ app/src/main/java/io/axiom/
 │   ├── home/
 │   │   ├── HomeUiState.kt        +recentProjects, +showNewProjectDialog
 │   │   ├── HomeViewModel.kt      AndroidViewModel + ProjectRepository; HomeSideEffect
-│   │   └── HomeScreen.kt        SAF launcher, ProjectsPanel + ResultsPanel dual-slot
+│   │   └── HomeScreen.kt         SAF launcher, ProjectsPanel + ResultsPanel dual-slot
+│   ├── editor/
+│   │   ├── EditorUiState.kt      Immutable editor snapshot + editorCommandBarHints
+│   │   ├── EditorViewModel.kt    File scan, open, edit, save, command-bar search
+│   │   └── EditorScreen.kt       Editor layout; folder icon in CommandBar → FileTreeModalSheet
 │   └── components/
+│       ├── CommandBar.kt         Morphing pill; onFileTreeClick param shows 📁 button
+│       ├── FileTreeSheet.kt      FileTreeModalSheet — M3 ModalBottomSheet wrapping file list
 │       ├── ProjectCard.kt        ProjectCard (strip card) + ProjectWingChip
 │       ├── RecentProjectsWings.kt Wings with project chips (home idle state)
 │       ├── ProjectsPanel.kt      Idle bottom panel with staggered project list
 │       └── NewProjectDialog.kt   ModalBottomSheet for creating a project
 ```
+
+## Editor Screen Design
+
+```
+┌─ EditorScreen ───────────────────────────────┐
+│  EditorTopBar  (back · project · file · save) │
+│  EditorSurface / EmptyState  (weight 1f)      │
+│    └─ ResultsPanel (overlays when searching)  │
+│  [ 📁 | 🔍  Search in project…          × ]  │  ← CommandBar w/ folder button
+└──────────────────────────────────────────────┘
+         ↕  tap 📁
+┌─ FileTreeModalSheet (ModalBottomSheet) ───────┐
+│  handle pill                                  │
+│  FILES                                  (n)   │
+│  ─────────────────────────────────────────    │
+│  • CharacterHeader.kt              6KB        │
+│  • TownHubScreen.kt                6KB        │
+└──────────────────────────────────────────────┘
+```
+
+The file tree is opened via a folder icon button on the left side of the `CommandBar`
+(only visible in the editor, not the home screen). This replaces the previous custom
+draggable peek-sheet, which had a WindowInsets timing race causing a one-frame flicker
+on entry. M3 `ModalBottomSheet` handles all positioning, insets, and dismissal.
 
 ## Home Screen State Machine
 

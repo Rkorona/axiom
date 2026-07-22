@@ -42,6 +42,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -61,7 +64,7 @@ import io.axiom.data.model.FileItem
 import io.axiom.data.model.Project
 import io.axiom.ui.components.AnimatedBackground
 import io.axiom.ui.components.CommandBar
-import io.axiom.ui.components.FileTreeSheet
+import io.axiom.ui.components.FileTreeModalSheet
 import io.axiom.ui.components.ResultsPanel
 import io.axiom.ui.theme.AxiomDusk
 import io.axiom.ui.theme.AxiomInk
@@ -70,10 +73,6 @@ import io.axiom.ui.theme.AxiomTextDisabled
 import io.axiom.ui.theme.AxiomTextPrimary
 import io.axiom.ui.theme.AxiomTextSecondary
 import io.axiom.ui.theme.AxiomViolet
-
-// Command bar height constant — FileTreeSheet needs to know how much bottom
-// space to leave so its collapsed peek strip appears above the bar.
-private val EDITOR_CMD_BAR_HEIGHT = 64.dp
 
 /**
  * The Axiom editor screen — state ③ of the home state machine.
@@ -107,6 +106,7 @@ fun EditorScreen(
     val uiState    by viewModel.uiState.collectAsState()
     val focusManager = LocalFocusManager.current
     val focused    = uiState.isCommandBarFocused
+    var showFileTree by remember { mutableStateOf(false) }
 
     // Load project once on first composition
     LaunchedEffect(projectId) { viewModel.loadProject(projectId) }
@@ -206,21 +206,24 @@ fun EditorScreen(
                 onQueryChange    = viewModel::onQueryChange,
                 onFocusChange    = viewModel::onCommandBarFocusChange,
                 onClear          = viewModel::onClearQuery,
+                onFileTreeClick  = { showFileTree = true },
                 modifier         = cmdBarModifier
             )
 
             Spacer(Modifier.navigationBarsPadding())
         }
 
-        // ── Layer 4: File tree sheet ──────────────────────────────────────────
-        // Collapsed peek strip sits above the command bar.
-        FileTreeSheet(
-            files               = uiState.files,
-            openFile            = uiState.openFile,
-            isCommandBarFocused = focused,
-            bottomPaddingDp     = EDITOR_CMD_BAR_HEIGHT.value + 16f,
-            onFileClick         = viewModel::onFileClick
-        )
+        // ── File tree modal ───────────────────────────────────────────────────
+        // Opened by the folder icon in CommandBar; replaces the old draggable
+        // peek sheet, eliminating the WindowInsets timing race entirely.
+        if (showFileTree) {
+            FileTreeModalSheet(
+                files       = uiState.files,
+                openFile    = uiState.openFile,
+                onDismiss   = { showFileTree = false },
+                onFileClick = viewModel::onFileClick
+            )
+        }
     }
 }
 
@@ -409,15 +412,15 @@ private fun EditorEmptyState(isLoadingFiles: Boolean) {
         } else {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Text(
-                    text  = "↑",
+                    text  = "📁",
                     style = MaterialTheme.typography.headlineLarge.copy(
                         color    = AxiomMist,
-                        fontSize = 32.sp
+                        fontSize = 30.sp
                     )
                 )
                 Spacer(Modifier.height(12.dp))
                 Text(
-                    text  = "Drag up to open a file",
+                    text  = "Tap the folder icon to open a file",
                     style = MaterialTheme.typography.bodySmall.copy(
                         color      = AxiomTextDisabled,
                         fontFamily = FontFamily.Monospace,

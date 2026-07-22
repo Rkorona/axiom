@@ -1,0 +1,23 @@
+用户：
+图一是进入编辑器后搜索栏直接出现在抽屉栏上面，等一会会自动又被抽屉栏覆盖掉恢复正常（图二），然后拉出抽屉栏后是图三的样子，怎么感觉哪里不对劲？ 还有就是，底部抽屉栏加搜索栏，怎么布局好像都不行？要是叠在一起的话太占地方。你有什么想法？
+--------------
+
+
+先看一下代码再分析。
+
+看完代码了，让我分析两个问题。
+
+Bug（图一的闪烁）
+
+根本原因是时序竞争：
+
+BoxWithConstraints 第一次 compose 时，WindowInsets.navigationBars.getBottom() 还没 settled（返回 0），导致 collapsedOffset 偏大（sheet 位置偏低）→ peek 条跑到 CommandBar 下面。一帧后 insets settled，extraPx 变化触发 LaunchedEffect 重新 snapTo 正确位置，sheet 往上跳。
+
+设计问题
+
+你说得对——底部抽屉 + 搜索栏叠在一起是结构性冲突，不是调参能解决的。我有一个方向：
+
+把文件树从悬浮抽屉变成内嵌在 CommandBar 里的入口
+
+[ 📁 ]  [ Search in project...        × ]
+CommandBar 左侧加一个文件夹图标按钮，点击弹出标准 ModalBottomSheet（文件树内容完全相同）。搜索栏本身不动。彻底消灭 peek 条 + 搜索栏抢空间的问题，同时把文件导航的入口变得更明显（现在 peek 条上拉是个隐藏手势）。
