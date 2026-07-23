@@ -4,6 +4,10 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import io.axiom.data.repository.AppSettingsRepository
 import io.axiom.ui.navigation.AxiomNavGraph
 import io.axiom.ui.theme.AxiomTheme
 
@@ -19,7 +23,14 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
-            AxiomTheme {
+            val themePref by AppSettingsRepository.theme.collectAsState()
+            val systemDark = isSystemInDarkTheme()
+            val darkTheme = when (themePref) {
+                "dark"   -> true
+                "light"  -> false
+                else     -> systemDark   // "system"
+            }
+            AxiomTheme(darkTheme = darkTheme) {
                 AxiomNavGraph()
             }
         }

@@ -56,7 +56,7 @@ fun defaultSettings(): List<SettingsEntry> = listOf(
     SettingsEntry("autoFetch",     "autoFetch",    "// fetch on project open",
         SettingValue.Toggle(false),   SettingsCategory.GIT),
     SettingsEntry("defaultBranch", "defaultBranch","// branch for new projects",
-        SettingValue.Info("main"),    SettingsCategory.GIT),
+        SettingValue.Select(listOf("main", "master", "develop"), "main"), SettingsCategory.GIT),
 
     // ── ABOUT ──────────────────────────────────────────────────────────────────
     SettingsEntry("version",   "version",   "// application version",

@@ -14,10 +14,12 @@ import kotlinx.coroutines.flow.asStateFlow
 object AppSettingsRepository {
 
     // ── Appearance ─────────────────────────────────────────────────────────────
+    private val _theme              = MutableStateFlow("dark")     // "dark"|"system"|"light"
     private val _accentKey          = MutableStateFlow("violet")   // "violet"|"coral"|"mint"
     private val _fontSize           = MutableStateFlow(14)
     private val _animatedBackground = MutableStateFlow(true)
 
+    val theme:              StateFlow<String>  = _theme.asStateFlow()
     val accentKey:          StateFlow<String>  = _accentKey.asStateFlow()
     val fontSize:           StateFlow<Int>     = _fontSize.asStateFlow()
     val animatedBackground: StateFlow<Boolean> = _animatedBackground.asStateFlow()
@@ -35,7 +37,15 @@ object AppSettingsRepository {
     val autoIndent:   StateFlow<Boolean> = _autoIndent.asStateFlow()
     val bracketPairs: StateFlow<Boolean> = _bracketPairs.asStateFlow()
 
+    // ── Git ────────────────────────────────────────────────────────────────────
+    private val _autoFetch     = MutableStateFlow(false)
+    private val _defaultBranch = MutableStateFlow("main")
+
+    val autoFetch:     StateFlow<Boolean> = _autoFetch.asStateFlow()
+    val defaultBranch: StateFlow<String>  = _defaultBranch.asStateFlow()
+
     // ── Setters ────────────────────────────────────────────────────────────────
+    fun setTheme(theme: String)            { _theme.value              = theme }
     fun setAccent(key: String)             { _accentKey.value          = key }
     fun setFontSize(sp: Int)               { _fontSize.value           = sp }
     fun setAnimatedBackground(on: Boolean) { _animatedBackground.value = on }
@@ -44,4 +54,6 @@ object AppSettingsRepository {
     fun setLineNumbers(on: Boolean)        { _lineNumbers.value        = on }
     fun setAutoIndent(on: Boolean)         { _autoIndent.value         = on }
     fun setBracketPairs(on: Boolean)       { _bracketPairs.value       = on }
+    fun setAutoFetch(on: Boolean)          { _autoFetch.value          = on }
+    fun setDefaultBranch(branch: String)   { _defaultBranch.value      = branch }
 }

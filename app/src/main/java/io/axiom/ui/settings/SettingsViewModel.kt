@@ -73,6 +73,8 @@ class SettingsViewModel : ViewModel() {
      *  the app reacts in real-time. */
     private fun syncToRepository(id: String, value: SettingValue) {
         when (id) {
+            "theme"              -> (value as? SettingValue.Select)
+                ?.let { AppSettingsRepository.setTheme(it.selected) }
             "accentColor"        -> (value as? SettingValue.AccentPicker)
                 ?.let { AppSettingsRepository.setAccent(it.selected) }
             "fontSize"           -> (value as? SettingValue.Stepper)
@@ -89,6 +91,10 @@ class SettingsViewModel : ViewModel() {
                 ?.let { AppSettingsRepository.setAutoIndent(it.enabled) }
             "bracketPairs"       -> (value as? SettingValue.Toggle)
                 ?.let { AppSettingsRepository.setBracketPairs(it.enabled) }
+            "autoFetch"          -> (value as? SettingValue.Toggle)
+                ?.let { AppSettingsRepository.setAutoFetch(it.enabled) }
+            "defaultBranch"      -> (value as? SettingValue.Select)
+                ?.let { AppSettingsRepository.setDefaultBranch(it.selected) }
         }
     }
 }
