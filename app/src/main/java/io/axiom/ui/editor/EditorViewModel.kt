@@ -167,7 +167,7 @@ class EditorViewModel(application: Application) : AndroidViewModel(application) 
         return when (mode) {
             CommandMode.FILE -> _uiState.value.files
                 .asSequence()
-                .filter { !it.isDirectory && (it.name.contains(q, ignoreCase = true) || it.path.contains(q, ignoreCase = true)) }
+                .filter { !it.isDirectory && it.name.contains(q, ignoreCase = true) }
                 .take(12)
                 .map { SearchResult.FileResult(it) }
                 .toList()
