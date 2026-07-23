@@ -93,12 +93,15 @@ object TextMateManager {
     /**
      * Returns a [TextMateLanguage] for [lang], or [EmptyLanguage] if TextMate
      * is not yet initialised or the language has no bundled grammar.
+     *
+     * @param autoCompleteEnabled When false, disables the completion popup and
+     *   bracket auto-closing provided by the TextMate language pipeline.
      */
-    fun createLanguage(lang: CodeLanguage): Language {
+    fun createLanguage(lang: CodeLanguage, autoCompleteEnabled: Boolean = true): Language {
         if (!initialized) return EmptyLanguage()
         val scope = lang.textMateScope ?: return EmptyLanguage()
         return try {
-            TextMateLanguage.create(scope, true /* autoCompleteEnabled */)
+            TextMateLanguage.create(scope, autoCompleteEnabled)
         } catch (_: Exception) {
             EmptyLanguage()
         }

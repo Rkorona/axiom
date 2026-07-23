@@ -68,6 +68,8 @@ import io.axiom.ui.theme.AxiomMist
 import io.axiom.ui.theme.AxiomTextDisabled
 import io.axiom.ui.theme.AxiomTextPrimary
 import io.axiom.ui.theme.AxiomTextSecondary
+import io.axiom.ui.theme.AxiomCoral
+import io.axiom.ui.theme.AxiomMint
 import io.axiom.ui.theme.AxiomViolet
 
 /**
@@ -125,7 +127,16 @@ fun EditorScreen(
             }
     ) {
         // ── Layer 1: Background ───────────────────────────────────────────────
-        AnimatedBackground(commandMode = uiState.commandMode)
+        val fileAccentColor = when (uiState.accentKey) {
+            "coral" -> AxiomCoral
+            "mint"  -> AxiomMint
+            else    -> AxiomViolet
+        }
+        AnimatedBackground(
+            commandMode     = uiState.commandMode,
+            enabled         = uiState.animatedBackground,
+            fileAccentColor = fileAccentColor
+        )
 
         // ── Layer 2: Scrim ────────────────────────────────────────────────────
         Box(
@@ -159,6 +170,7 @@ fun EditorScreen(
                         fileKey         = "${uiState.openFile!!.path}${uiState.openFile!!.name}",
                         language        = uiState.openFile!!.language,
                         onContentChange = viewModel::onContentChange,
+                        settings        = uiState.editorSettings,
                         modifier        = Modifier.fillMaxSize()
                     )
                     else                     -> EditorEmptyState(isLoadingFiles = uiState.isLoadingFiles)

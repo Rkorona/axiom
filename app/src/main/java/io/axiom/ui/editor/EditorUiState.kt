@@ -1,6 +1,7 @@
 package io.axiom.ui.editor
 
 import io.axiom.data.model.CommandMode
+import io.axiom.data.model.EditorSettings
 import io.axiom.data.model.FileItem
 import io.axiom.data.model.GroupedResults
 import io.axiom.data.model.Project
@@ -38,7 +39,12 @@ data class EditorUiState(
     val isSearching: Boolean = false,
     val groupedResults: GroupedResults = GroupedResults(),
     val showEmptyState: Boolean = false,
-    val placeholderIndex: Int = 0
+    val placeholderIndex: Int = 0,
+
+    // ── App settings (mirrored from AppSettingsRepository) ───────────────────
+    val editorSettings:     EditorSettings = EditorSettings(),
+    val animatedBackground: Boolean        = true,
+    val accentKey:          String         = "violet"
 )
 
 /** Placeholder hints that cycle in the editor's Command Bar when idle. */

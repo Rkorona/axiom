@@ -22,10 +22,13 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
+import io.axiom.data.model.EditorSettings
+import io.axiom.data.repository.AppSettingsRepository
 
 class EditorViewModel(application: Application) : AndroidViewModel(application) {
 
@@ -36,6 +39,39 @@ class EditorViewModel(application: Application) : AndroidViewModel(application) 
 
     private var searchJob: Job? = null
     private var hintCycleJob: Job? = null
+
+    init {
+        // Mirror AppSettingsRepository into uiState so the editor reacts live.
+        viewModelScope.launch {
+            combine(
+                AppSettingsRepository.fontSize,
+                AppSettingsRepository.tabSize,
+                AppSettingsRepository.wordWrap,
+                AppSettingsRepository.lineNumbers,
+                AppSettingsRepository.autoIndent
+            ) { fontSize, tabSize, wordWrap, lineNumbers, autoIndent ->
+                EditorSettings(
+                    fontSize    = fontSize,
+                    tabSize     = tabSize,
+                    wordWrap    = wordWrap,
+                    lineNumbers = lineNumbers,
+                    autoIndent  = autoIndent
+                )
+            }
+            .combine(AppSettingsRepository.bracketPairs) { s, bp -> s.copy(bracketPairs = bp) }
+            .collect { s -> _uiState.update { it.copy(editorSettings = s) } }
+        }
+
+        viewModelScope.launch {
+            combine(
+                AppSettingsRepository.animatedBackground,
+                AppSettingsRepository.accentKey
+            ) { animated, accent -> Pair(animated, accent) }
+            .collect { (animated, accent) ->
+                _uiState.update { it.copy(animatedBackground = animated, accentKey = accent) }
+            }
+        }
+    }
 
     fun loadProject(projectId: Long) {
         viewModelScope.launch {

@@ -63,7 +63,10 @@ import io.axiom.ui.components.ProjectsBottomSheet
 import io.axiom.ui.components.RecentFilesWing
 import io.axiom.ui.components.ResultsPanel
 import io.axiom.ui.components.WingSide
+import io.axiom.ui.theme.AxiomCoral
 import io.axiom.ui.theme.AxiomFileModeColor
+import io.axiom.ui.theme.AxiomMint
+import io.axiom.ui.theme.AxiomViolet
 import io.axiom.ui.theme.AxiomInk
 import io.axiom.ui.theme.AxiomTextDisabled
 import io.axiom.ui.theme.AxiomTextPrimary
@@ -170,7 +173,16 @@ fun HomeScreen(
             }
     ) {
         // ── Layer 1: Animated deep-space background ───────────────────────────
-        AnimatedBackground(commandMode = uiState.commandMode)
+        val fileAccentColor = when (uiState.accentKey) {
+            "coral" -> AxiomCoral
+            "mint"  -> AxiomMint
+            else    -> AxiomViolet
+        }
+        AnimatedBackground(
+            commandMode     = uiState.commandMode,
+            enabled         = uiState.animatedBackground,
+            fileAccentColor = fileAccentColor
+        )
 
         // ── Layer 2: Scrim ────────────────────────────────────────────────────
         Box(

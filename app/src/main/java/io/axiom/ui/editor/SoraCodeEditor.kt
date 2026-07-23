@@ -12,6 +12,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.viewinterop.AndroidView
 import io.axiom.data.model.CodeLanguage
+import io.axiom.data.model.EditorSettings
 import io.axiom.ui.editor.textmate.TextMateManager
 import io.github.rosemoe.sora.event.ContentChangeEvent
 import io.github.rosemoe.sora.widget.CodeEditor
@@ -19,89 +20,105 @@ import io.github.rosemoe.sora.widget.CodeEditor
 /**
  * Compose wrapper around sora-editor's [CodeEditor] with TextMate syntax highlighting.
  *
- * Architecture:
- *  - [TextMateManager.init] is idempotent; it loads grammars and the Axiom dark theme
- *    from `assets/textmate/` on first call, then no-ops on subsequent calls.
- *  - [TextMateManager.applyTheme] binds [TextMateColorScheme] so token colours from
- *    the theme JSON are used.  Falls back to [AxiomEditorColorScheme] if init failed.
- *  - [TextMateManager.createLanguage] returns a per-editor [TextMateLanguage] instance
- *    (single-editor use, per sora docs) keyed on the language's TextMate scope name.
- *  - Auto-indent is provided natively by [TextMateLanguage] via the bundled
- *    `*.language-configuration.json` files; no manual NewlineHandler needed.
+ * Settings are applied reactively:
+ * - [EditorSettings.fontSize], [tabSize], [wordWrap], [lineNumbers] are applied on
+ *   every `update` pass — cheap property assignments that take effect immediately.
+ * - [EditorSettings.autoIndent] and [bracketPairs] control `autoCompleteEnabled`
+ *   on the TextMate language; together they govern the completion popup and
+ *   bracket auto-closing. The language is recreated whenever either flag or the
+ *   active file changes.
  *
  * File switching:
- *  - [fileKey] must be unique per file: callers use `"${file.path}${file.name}"`.
- *  - Editor content and language are only reloaded when [fileKey] changes, never on
- *    every recomposition or keystroke.
+ * - Content and language are only reloaded when [fileKey] changes, never on
+ *   every recomposition or keystroke — this prevents cursor-jump on typing.
  */
 @Composable
 fun SoraCodeEditor(
-    content: String,
-    fileKey: String,
-    language: CodeLanguage,
+    content:         String,
+    fileKey:         String,
+    language:        CodeLanguage,
     onContentChange: (String) -> Unit,
-    modifier: Modifier = Modifier
+    settings:        EditorSettings = EditorSettings(),
+    modifier:        Modifier       = Modifier
 ) {
-    val context = LocalContext.current
-    val onChangeState = rememberUpdatedState(onContentChange)
-    var lastLoadedKey by remember { mutableStateOf<String?>(null) }
+    val context        = LocalContext.current
+    val onChangeState  = rememberUpdatedState(onContentChange)
 
-    // Ensure the TextMate pipeline is ready before the first frame.
-    // remember(context) runs once per composition lifetime.
+    // Track the last loaded file so we only reload content on file changes.
+    var lastFileKey by remember { mutableStateOf<String?>(null) }
+    // Track language-affecting settings so we recreate the language when they change.
+    var lastLangKey by remember { mutableStateOf<String?>(null) }
+
     remember(context) { TextMateManager.init(context) }
 
     AndroidView(
         factory = { ctx ->
-            // init() is idempotent — safe to call redundantly here in case
-            // the factory runs on a different Context than the one above.
             TextMateManager.init(ctx)
 
             CodeEditor(ctx).apply {
 
-                // ── Theme ──────────────────────────────────────────────────
-                // Must be set before the first layout pass or colours are lost.
+                // ── Theme ──────────────────────────────────────────────────────
                 TextMateManager.applyTheme(this)
 
-                // ── Typography ─────────────────────────────────────────────
+                // ── Typography (initial values from settings) ──────────────────
                 typefaceText = Typeface.MONOSPACE
-                setTextSize(13f)
-                tabWidth = 4
+                setTextSize(settings.fontSize.toFloat())
+                tabWidth = settings.tabSize
 
-                // ── Layout behaviour ───────────────────────────────────────
-                isWordwrap = false
-                isLineNumberEnabled = true
+                // ── Layout behaviour ───────────────────────────────────────────
+                isWordwrap        = settings.wordWrap
+                isLineNumberEnabled = settings.lineNumbers
                 nonPrintablePaintingFlags = 0
 
-                // ── Scrollbars ─────────────────────────────────────────────
-                // Disable the native Android scroll indicators; sora draws
-                // its own from the theme.
-                isVerticalScrollBarEnabled = false
+                // ── Scrollbars ─────────────────────────────────────────────────
+                isVerticalScrollBarEnabled   = false
                 isHorizontalScrollBarEnabled = false
-                overScrollMode = View.OVER_SCROLL_NEVER
+                overScrollMode               = View.OVER_SCROLL_NEVER
 
-                // ── Language & auto-indent ─────────────────────────────────
-                // TextMateLanguage provides syntax highlighting and reads
-                // indentationRules from the bundled language-configuration.json
-                // for automatic indent on Enter — no manual NewlineHandler needed.
-                setEditorLanguage(TextMateManager.createLanguage(language))
+                // ── Language ───────────────────────────────────────────────────
+                setEditorLanguage(
+                    TextMateManager.createLanguage(
+                        lang                = language,
+                        autoCompleteEnabled = settings.autoIndent && settings.bracketPairs
+                    )
+                )
 
-                // ── Content change → ViewModel ─────────────────────────────
+                // ── Content change → ViewModel ─────────────────────────────────
                 subscribeEvent(ContentChangeEvent::class.java) { _, _ ->
                     onChangeState.value(text.toString())
                 }
             }
         },
         update = { editor ->
-            // Only reload content and language when the open file changes.
-            if (fileKey != lastLoadedKey) {
-                lastLoadedKey = fileKey
+
+            // ── Live settings — safe to apply on every update ──────────────────
+            editor.setTextSize(settings.fontSize.toFloat())
+            editor.tabWidth             = settings.tabSize
+            editor.isWordwrap           = settings.wordWrap
+            editor.isLineNumberEnabled  = settings.lineNumbers
+
+            // ── File change: reload content, theme, and language ───────────────
+            val fileChanged = fileKey != lastFileKey
+            if (fileChanged) {
+                lastFileKey = fileKey
                 editor.setText(content)
                 if (editor.lineCount > 0) editor.setSelection(0, 0)
                 TextMateManager.applyTheme(editor)
-                editor.setEditorLanguage(TextMateManager.createLanguage(language))
+            }
+
+            // ── Language change: recreate when file or completion flags change ──
+            val langKey = "$fileKey|${settings.autoIndent}|${settings.bracketPairs}|${language.name}"
+            if (langKey != lastLangKey) {
+                lastLangKey = langKey
+                editor.setEditorLanguage(
+                    TextMateManager.createLanguage(
+                        lang                = language,
+                        autoCompleteEnabled = settings.autoIndent && settings.bracketPairs
+                    )
+                )
             }
         },
         onRelease = { editor -> editor.release() },
-        modifier = modifier
+        modifier  = modifier
     )
 }

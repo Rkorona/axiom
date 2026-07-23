@@ -50,7 +50,11 @@ data class HomeUiState(
     val showNewProjectDialog: Boolean = false,
 
     /** True while a project is being created in the background. */
-    val isCreatingProject: Boolean = false
+    val isCreatingProject: Boolean = false,
+
+    // ── App settings (mirrored from AppSettingsRepository) ───────────────────
+    val animatedBackground: Boolean = true,
+    val accentKey:          String  = "violet"
 )
 
 /** Placeholder hints that cycle in the Command Bar when it's idle. */

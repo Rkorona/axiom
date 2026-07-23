@@ -21,8 +21,10 @@ import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import io.axiom.data.repository.AppSettingsRepository
 
 // ── One-shot side effects ─────────────────────────────────────────────────────
 
@@ -104,6 +106,17 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             repository.recentProjects(limit = 6).collect { projects ->
                 _uiState.update { it.copy(recentProjects = projects) }
+            }
+        }
+
+        // Mirror animated background + accent key from AppSettingsRepository
+        viewModelScope.launch {
+            combine(
+                AppSettingsRepository.animatedBackground,
+                AppSettingsRepository.accentKey
+            ) { animated, accent -> Pair(animated, accent) }
+            .collect { (animated, accent) ->
+                _uiState.update { it.copy(animatedBackground = animated, accentKey = accent) }
             }
         }
 

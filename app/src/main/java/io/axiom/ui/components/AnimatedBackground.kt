@@ -1,7 +1,6 @@
 package io.axiom.ui.components
 
 import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
@@ -22,6 +21,7 @@ import io.axiom.ui.theme.AxiomCommandModeColor
 import io.axiom.ui.theme.AxiomFileModeColor
 import io.axiom.ui.theme.AxiomInk
 import io.axiom.ui.theme.AxiomSymbolModeColor
+import androidx.compose.animation.core.FastOutSlowInEasing
 import kotlin.math.PI
 import kotlin.math.cos
 import kotlin.math.sin
@@ -50,14 +50,26 @@ private val ORB_SPECS = listOf(
 
 /**
  * 具有空间视差感与模式渐变的 Orb 气泡背景。
+ *
+ * @param commandMode      Drives the three-colour palette (FILE / COMMAND / SYMBOL).
+ * @param enabled          When false renders a solid [AxiomInk] surface — no orbs.
+ * @param fileAccentColor  Overrides the FILE-mode primary orb colour (from accent setting).
  */
 @Composable
 fun AnimatedBackground(
-    commandMode: CommandMode,
-    modifier: Modifier = Modifier
+    commandMode:     CommandMode,
+    modifier:        Modifier = Modifier,
+    enabled:         Boolean  = true,
+    fileAccentColor: Color    = AxiomFileModeColor
 ) {
+    // When background is disabled, show plain solid colour and return early.
+    if (!enabled) {
+        Canvas(modifier = modifier.fillMaxSize()) { drawRect(color = AxiomInk) }
+        return
+    }
+
     val targetPrimary = when (commandMode) {
-        CommandMode.FILE    -> AxiomFileModeColor
+        CommandMode.FILE    -> fileAccentColor
         CommandMode.COMMAND -> AxiomCommandModeColor
         CommandMode.SYMBOL  -> AxiomSymbolModeColor
     }
