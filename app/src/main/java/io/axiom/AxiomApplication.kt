@@ -13,6 +13,6 @@ class AxiomApplication : Application() {
         super.onCreate()
 
         // 全局预热 TextMate 内存语法树与主题包
-        TextMateManager.ensureInitialized(this)
+        TextMateManager.init(this)
     }
 }
