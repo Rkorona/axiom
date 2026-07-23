@@ -6,12 +6,11 @@ import androidx.room.Room
 import androidx.room.RoomDatabase
 
 /**
- * Singleton Room database for Axiom.
- * Currently holds one table: [ProjectEntity].
+ * Axiom 线程安全的 Room 数据库单例。
  */
 @Database(
-    entities  = [ProjectEntity::class],
-    version   = 1,
+    entities     = [ProjectEntity::class],
+    version      = 1,
     exportSchema = false
 )
 abstract class AxiomDatabase : RoomDatabase() {
@@ -19,7 +18,8 @@ abstract class AxiomDatabase : RoomDatabase() {
     abstract fun projectDao(): ProjectDao
 
     companion object {
-        @Volatile private var INSTANCE: AxiomDatabase? = null
+        @Volatile
+        private var INSTANCE: AxiomDatabase? = null
 
         fun getInstance(context: Context): AxiomDatabase =
             INSTANCE ?: synchronized(this) {
@@ -27,7 +27,10 @@ abstract class AxiomDatabase : RoomDatabase() {
                     context.applicationContext,
                     AxiomDatabase::class.java,
                     "axiom.db"
-                ).build().also { INSTANCE = it }
+                )
+                .fallbackToDestructiveMigration() // 🛡️ 边界防错：开发演进期自动降级重建，避免 Schema 验证破坏
+                .build()
+                .also { INSTANCE = it }
             }
     }
 }

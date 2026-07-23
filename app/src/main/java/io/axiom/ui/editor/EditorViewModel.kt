@@ -37,8 +37,6 @@ class EditorViewModel(application: Application) : AndroidViewModel(application) 
     private var searchJob: Job? = null
     private var hintCycleJob: Job? = null
 
-    // ── Project loading ────────────────────────────────────────────────────────
-
     fun loadProject(projectId: Long) {
         viewModelScope.launch {
             val project = repository.getProjectById(projectId) ?: return@launch
@@ -54,8 +52,6 @@ class EditorViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
-    // ── File actions ───────────────────────────────────────────────────────────
-
     fun onFileClick(file: FileItem) {
         val project = _uiState.value.project ?: return
         _uiState.update { it.copy(openFile = file, isLoadingContent = true, fileContent = "") }
@@ -64,23 +60,21 @@ class EditorViewModel(application: Application) : AndroidViewModel(application) 
             val content = withContext(Dispatchers.IO) {
                 try {
                     if (project.isExternal) {
-                        // SAF: file.path stores the document URI string
                         getApplication<Application>().contentResolver
                             .openInputStream(Uri.parse(file.path))
-                            ?.bufferedReader()?.readText()
-                            ?: "// Cannot read file via storage access"
+                            ?.bufferedReader()?.use { it.readText() }
+                            ?: "// Cannot read file via SAF storage"
                     } else {
                         val fullPath = buildPath(project.rootUri, file)
                         File(fullPath).readText()
                     }
                 } catch (e: Exception) {
-                    "// Error reading file: ${e.message}"
+                    "// Error reading file: ${e.localizedMessage}"
                 }
             }
             _uiState.update {
                 it.copy(fileContent = content, isLoadingContent = false, isDirty = false)
             }
-            // Record the file as recently edited for the project card subtitle
             repository.updateLastEditedFile(project, file.name)
         }
     }
@@ -89,10 +83,6 @@ class EditorViewModel(application: Application) : AndroidViewModel(application) 
         _uiState.update { it.copy(fileContent = text, isDirty = true) }
     }
 
-    /**
-     * Persist the current file to disk.
-     * SAF write is deferred to a future phase — only internal projects are supported.
-     */
     fun saveCurrentFile() {
         val state   = _uiState.value
         val project = state.project ?: return
@@ -107,8 +97,6 @@ class EditorViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
-    // ── Command bar ────────────────────────────────────────────────────────────
-
     fun onQueryChange(query: String) {
         val mode = when {
             query.startsWith(">") -> CommandMode.COMMAND
@@ -120,7 +108,7 @@ class EditorViewModel(application: Application) : AndroidViewModel(application) 
         searchJob?.cancel()
         searchJob = viewModelScope.launch {
             delay(SEARCH_DEBOUNCE_MS)
-            val results = performSearch(query, mode)
+            val results = withContext(Dispatchers.Default) { performSearch(query, mode) }
             val grouped = results.toGrouped()
             _uiState.update {
                 it.copy(
@@ -153,11 +141,8 @@ class EditorViewModel(application: Application) : AndroidViewModel(application) 
     fun onCommandClick(command: AppCommand) {
         when (command.id) {
             "save" -> saveCurrentFile()
-            // Other commands are stubs for Phase B (B2 routing)
         }
     }
-
-    // ── Private helpers ────────────────────────────────────────────────────────
 
     private fun startHintCycle() {
         hintCycleJob?.cancel()
@@ -181,39 +166,31 @@ class EditorViewModel(application: Application) : AndroidViewModel(application) 
 
         return when (mode) {
             CommandMode.FILE -> _uiState.value.files
+                .asSequence()
                 .filter { !it.isDirectory && (it.name.contains(q, ignoreCase = true) || it.path.contains(q, ignoreCase = true)) }
                 .take(12)
                 .map { SearchResult.FileResult(it) }
+                .toList()
 
             CommandMode.COMMAND -> EDITOR_COMMANDS
+                .asSequence()
                 .filter { it.title.contains(q, ignoreCase = true) || it.description.contains(q, ignoreCase = true) }
                 .take(8)
                 .map { SearchResult.CommandResult(it) }
+                .toList()
 
-            CommandMode.SYMBOL -> emptyList() // Phase B: real LSP / regex symbol indexing
+            CommandMode.SYMBOL -> emptyList()
         }
     }
 
-    /** Build the full absolute path for an internal (non-SAF) file. */
     private fun buildPath(rootUri: String, file: FileItem): String =
         if (file.path.isEmpty()) "$rootUri/${file.name}"
         else "$rootUri/${file.path}${file.name}"
 
-    /**
-     * List top-level files in a SAF document tree.
-     * Stores the document URI in [FileItem.path] so [onFileClick] can open it
-     * directly with ContentResolver.
-     */
-    /**
-     * Recursively scan a SAF document tree up to [maxDepth] levels deep.
-     * [FileItem.path] stores the document URI for reading.
-     * [FileItem.parentPath] stores the parent folder URI ("" for root-level items).
-     * [FileItem.depth] stores the nesting level (0 = direct child of project root).
-     */
-    private fun scanSafFiles(rootUriString: String): List<FileItem> {
+    private suspend fun scanSafFiles(rootUriString: String): List<FileItem> = withContext(Dispatchers.IO) {
         val app     = getApplication<Application>()
         val treeUri = Uri.parse(rootUriString)
-        return try {
+        return@withContext try {
             val rootDocId = DocumentsContract.getTreeDocumentId(treeUri)
             scanSafDirectory(app, treeUri, rootDocId, parentPath = "", depth = 0)
         } catch (e: Exception) {
@@ -227,7 +204,7 @@ class EditorViewModel(application: Application) : AndroidViewModel(application) 
         dirDocId: String,
         parentPath: String,
         depth: Int,
-        maxDepth: Int = 5
+        maxDepth: Int = 4
     ): List<FileItem> {
         if (depth > maxDepth) return emptyList()
 
@@ -259,28 +236,28 @@ class EditorViewModel(application: Application) : AndroidViewModel(application) 
                 val docUri = DocumentsContract.buildDocumentUriUsingTree(treeUri, docId)
                 val ext    = if (isDir) "" else name.substringAfterLast('.', "").lowercase()
 
-                entries.add(Entry(
-                    docId = docId,
-                    item  = FileItem(
-                        id           = docId,
-                        name         = name,
-                        path         = docUri.toString(),
-                        extension    = ext,
-                        lastModified = mod,
-                        size         = if (isDir) 0L else size,
-                        language     = if (isDir) CodeLanguage.UNKNOWN else ext.toCodeLanguage(),
-                        isDirectory  = isDir,
-                        parentPath   = parentPath,
-                        depth        = depth
+                entries.add(
+                    Entry(
+                        docId = docId,
+                        item  = FileItem(
+                            id           = docId,
+                            name         = name,
+                            path         = docUri.toString(),
+                            extension    = ext,
+                            lastModified = mod,
+                            size         = if (isDir) 0L else size,
+                            language     = if (isDir) CodeLanguage.UNKNOWN else ext.toCodeLanguage(),
+                            isDirectory  = isDir,
+                            parentPath   = parentPath,
+                            depth        = depth
+                        )
                     )
-                ))
+                )
             }
         }
 
-        // Directories first, then files, alphabetically
         entries.sortWith(compareBy({ !it.item.isDirectory }, { it.item.name }))
 
-        // Depth-first: each folder immediately followed by its subtree
         val result = mutableListOf<FileItem>()
         for (entry in entries) {
             result.add(entry.item)
@@ -303,27 +280,21 @@ class EditorViewModel(application: Application) : AndroidViewModel(application) 
         private const val SEARCH_DEBOUNCE_MS = 100L
 
         private val EDITOR_COMMANDS = listOf(
-            // ── File ──────────────────────────────────────────────────────────
             AppCommand("save",           "Save File",        "Save the currently open file",                null, CommandCategory.FILE),
             AppCommand("save_all",       "Save All",         "Save all unsaved changes",                    null, CommandCategory.FILE),
             AppCommand("new_file",       "New File",         "Create a new file in this project",           null, CommandCategory.FILE),
             AppCommand("new_folder",     "New Folder",       "Create a new folder in this project",         null, CommandCategory.FILE),
             AppCommand("close_file",     "Close File",       "Close the active file",                       null, CommandCategory.FILE),
-            // ── Edit ──────────────────────────────────────────────────────────
             AppCommand("find_replace",   "Find & Replace",   "Search and replace in current file",          null, CommandCategory.EDIT),
             AppCommand("format_doc",     "Format Document",  "Run code formatter on current file",          null, CommandCategory.EDIT),
             AppCommand("rename_symbol",  "Rename Symbol",    "Rename symbol under cursor",                  null, CommandCategory.EDIT),
-            // ── Terminal ──────────────────────────────────────────────────────
             AppCommand("open_terminal",  "Open Terminal",    "Open integrated terminal panel",              null, CommandCategory.TERMINAL),
-            // ── View ──────────────────────────────────────────────────────────
             AppCommand("split_editor",   "Split Editor",     "Split editor horizontally or vertically",     null, CommandCategory.VIEW),
             AppCommand("toggle_minimap", "Toggle Minimap",   "Show or hide the code minimap",               null, CommandCategory.VIEW),
             AppCommand("toggle_theme",   "Toggle Theme",     "Switch between dark and light colour scheme", null, CommandCategory.VIEW),
-            // ── Git ───────────────────────────────────────────────────────────
             AppCommand("git_status",     "Git Status",       "Show working tree status",                    null, CommandCategory.GIT),
             AppCommand("git_commit",     "Git Commit",       "Stage changes and commit",                    null, CommandCategory.GIT),
             AppCommand("git_push",       "Git Push",         "Push commits to remote",                      null, CommandCategory.GIT),
-            // ── General ───────────────────────────────────────────────────────
             AppCommand("settings",       "Settings",         "Open application settings",                   null, CommandCategory.GENERAL),
             AppCommand("command_palette","Command Palette",  "Open this command palette",                   null, CommandCategory.GENERAL),
         )

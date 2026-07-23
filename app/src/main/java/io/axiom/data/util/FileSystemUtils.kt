@@ -3,25 +3,22 @@ package io.axiom.data.util
 import io.axiom.data.model.CodeLanguage
 import io.axiom.data.model.FileItem
 import io.axiom.data.model.toCodeLanguage
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import java.io.File
 
 /**
- * Utilities for working with the local file system.
+ * 高性能文件系统工具类。
  */
 object FileSystemUtils {
 
     /**
-     * Scan the root directory of a project and auto-detect its primary language.
-     *
-     * Strategy:
-     * 1. Check for well-known indicator files in the root (e.g. build.gradle.kts → Kotlin).
-     * 2. Fall back to the most frequent file extension in the top 3 directory levels.
+     * 自动检测项目主语言。
      */
-    fun detectLanguage(rootPath: String): CodeLanguage {
+    suspend fun detectLanguage(rootPath: String): CodeLanguage = withContext(Dispatchers.IO) {
         val root = File(rootPath)
-        if (!root.exists() || !root.isDirectory) return CodeLanguage.UNKNOWN
+        if (!root.exists() || !root.isDirectory) return@withContext CodeLanguage.UNKNOWN
 
-        // Indicator files → language mapping (ordered by specificity)
         val indicators = linkedMapOf(
             "build.gradle.kts" to CodeLanguage.KOTLIN,
             "build.gradle"     to CodeLanguage.KOTLIN,
@@ -29,70 +26,61 @@ object FileSystemUtils {
             "package.json"     to CodeLanguage.JAVASCRIPT,
             "requirements.txt" to CodeLanguage.PYTHON,
             "pyproject.toml"   to CodeLanguage.PYTHON,
-            "setup.py"         to CodeLanguage.PYTHON,
             "Cargo.toml"       to CodeLanguage.RUST,
             "go.mod"           to CodeLanguage.GO,
             "pubspec.yaml"     to CodeLanguage.DART,
             "Package.swift"    to CodeLanguage.SWIFT,
-            "pom.xml"          to CodeLanguage.JAVA,
-            "gradlew"          to CodeLanguage.KOTLIN
+            "pom.xml"          to CodeLanguage.JAVA
         )
 
         root.listFiles()?.forEach { file ->
-            indicators[file.name]?.let { return it }
+            indicators[file.name]?.let { return@withContext it }
         }
 
-        // Extension frequency fallback — walk up to 3 levels deep
         val extFreq = mutableMapOf<String, Int>()
         root.walkTopDown()
             .maxDepth(3)
+            .asSequence()
             .filter { it.isFile }
             .forEach { file ->
                 val ext = file.extension.lowercase()
-                if (ext.isNotBlank()) extFreq[ext] = (extFreq[ext] ?: 0) + 1
+                if (ext.isNotBlank()) {
+                    extFreq[ext] = (extFreq[ext] ?: 0) + 1
+                }
             }
 
-        val topExt = extFreq.maxByOrNull { it.value }?.key ?: return CodeLanguage.UNKNOWN
-        return CodeLanguage.entries.firstOrNull { topExt in it.extensions }
+        val topExt = extFreq.maxByOrNull { it.value }?.key ?: return@withContext CodeLanguage.UNKNOWN
+        return@withContext CodeLanguage.entries.firstOrNull { topExt in it.extensions }
             ?: CodeLanguage.UNKNOWN
     }
 
     /**
-     * Create a project directory under [baseDir].
-     * Sanitises [projectName] to a safe directory name.
-     * Returns the created [File] or null if creation failed.
+     * 创建项目根目录。
      */
-    fun createProjectDir(baseDir: File, projectName: String): File? {
+    suspend fun createProjectDir(baseDir: File, projectName: String): File? = withContext(Dispatchers.IO) {
         val sanitized = projectName.trim()
             .replace(Regex("[^a-zA-Z0-9_.\\- ]"), "_")
             .replace(' ', '_')
             .ifBlank { "project_${System.currentTimeMillis()}" }
         val projectDir = File(baseDir, sanitized)
-        return if (projectDir.mkdirs() || projectDir.exists()) projectDir else null
+        if (projectDir.mkdirs() || projectDir.exists()) projectDir else null
     }
 
     /**
-     * Recursively scan a project directory and return a flat list of [FileItem]s.
-     *
-     * Skips hidden files, `node_modules`, `build`, `.gradle`, `.git`, `__pycache__`,
-     * and `target` directories to avoid polluting the tree with generated artefacts.
-     *
-     * @param rootPath Absolute path to the project root.
-     * @param maxFiles Safety cap to avoid walking enormous monorepos.
+     * 惰性递归扫描本地项目目录，采用 Sequence 规避大工程内存暴涨。
      */
-    fun scanFiles(rootPath: String, maxFiles: Int = 300): List<FileItem> {
+    suspend fun scanFiles(rootPath: String, maxFiles: Int = 400): List<FileItem> = withContext(Dispatchers.IO) {
         val root = File(rootPath)
-        if (!root.exists() || !root.isDirectory) return emptyList()
+        if (!root.exists() || !root.isDirectory) return@withContext emptyList()
 
         val skipDirs = setOf(
             "node_modules", "build", ".gradle", ".git",
             "__pycache__", "target", ".idea", ".dart_tool", ".pub-cache"
         )
 
-        return root.walkTopDown()
-            .onEnter { dir ->
-                !dir.name.startsWith(".") && dir.name !in skipDirs
-            }
+        root.walkTopDown()
+            .onEnter { dir -> !dir.name.startsWith(".") && dir.name !in skipDirs }
+            .asSequence()
             .filter { it.isFile && !it.name.startsWith(".") }
             .take(maxFiles)
             .mapIndexed { index, file ->
@@ -112,10 +100,6 @@ object FileSystemUtils {
             .toList()
     }
 
-    /**
-     * Format a Unix timestamp as a human-readable "time ago" string.
-     * Used in project cards to show recency.
-     */
     fun timeAgo(timestamp: Long): String {
         val diff = System.currentTimeMillis() - timestamp
         return when {

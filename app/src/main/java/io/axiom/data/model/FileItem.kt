@@ -1,8 +1,13 @@
 package io.axiom.data.model
 
+import androidx.compose.runtime.Immutable
+import androidx.compose.runtime.Stable
+
 /**
- * Represents a file or directory entry in the editor's file system.
+ * 代表文件系统中的单个文件或目录条目。
+ * 标注 @Immutable 确保 Compose 在 List 重绘时可以安全跳过未修改的 Card。
  */
+@Immutable
 data class FileItem(
     val id: String,
     val name: String,
@@ -13,31 +18,16 @@ data class FileItem(
     val isPinned: Boolean = false,
     val language: CodeLanguage = CodeLanguage.UNKNOWN,
     val isDirectory: Boolean = false,
-    /** SAF only: URI of the parent folder, or "" for root-level items. */
     val parentPath: String = "",
-    /** SAF only: nesting depth; 0 = direct child of project root. */
     val depth: Int = 0
 )
 
-/**
- * Represents the current input mode of the Command Bar,
- * determined by the leading prefix character of the query.
- */
 enum class CommandMode {
-    /** Default — fuzzy search across all project files. */
     FILE,
-
-    /** Triggered by '>' prefix — execute editor commands. */
     COMMAND,
-
-    /** Triggered by '#' prefix — jump to a code symbol. */
     SYMBOL
 }
 
-/**
- * Supported programming and markup languages for syntax highlighting
- * and icon differentiation.
- */
 enum class CodeLanguage(
     val displayName: String,
     val extensions: List<String>,
@@ -64,9 +54,7 @@ enum class CodeLanguage(
     UNKNOWN("Text", emptyList(), 0xFF8B8FA8)
 }
 
-/**
- * An editor-level command that can be invoked from the Command Bar.
- */
+@Immutable
 data class AppCommand(
     val id: String,
     val title: String,
@@ -84,13 +72,13 @@ enum class CommandCategory(val label: String) {
     TERMINAL("Terminal")
 }
 
-/**
- * A unified search result type returned by the search engine.
- * Sealed to guarantee exhaustive handling in UI.
- */
+@Stable
 sealed class SearchResult {
+    @Immutable
     data class FileResult(val file: FileItem) : SearchResult()
+    @Immutable
     data class CommandResult(val command: AppCommand) : SearchResult()
+    @Immutable
     data class SymbolResult(
         val symbol: String,
         val kind: SymbolKind,
@@ -110,9 +98,7 @@ enum class SymbolKind(val label: String) {
     ANNOTATION("annotation")
 }
 
-/**
- * Groups search results by type for section-aware rendering.
- */
+@Immutable
 data class GroupedResults(
     val files: List<SearchResult.FileResult> = emptyList(),
     val commands: List<SearchResult.CommandResult> = emptyList(),

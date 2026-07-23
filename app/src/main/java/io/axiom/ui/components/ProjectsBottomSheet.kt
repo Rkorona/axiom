@@ -21,11 +21,11 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.offset
-import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -65,35 +65,19 @@ import io.axiom.ui.theme.AxiomVoid
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
-// ── Layout constants ──────────────────────────────────────────────────────────
-private val PEEK_BASE_HEIGHT  = 72.dp
-private val SHEET_CORNER      = 28.dp
+private val PEEK_BASE_HEIGHT   = 72.dp
+private val SHEET_CORNER       = 28.dp
 
-// Used to compute the expanded-sheet height from the project list size, so the
-// sheet only rises as far as needed rather than always flying to the status bar.
-private val SHEET_HANDLE_H    = 20.dp   // handle pill area (padding + pill)
-private val SHEET_PEEK_BAR_H  = 48.dp   // peek row fixed height
-private val SHEET_DIVIDER_H   = 1.dp
-private val LIST_V_PAD        = 8.dp    // LazyColumn contentPadding vertical each side
-private val LIST_HEADER_H     = 40.dp   // SectionHeader approximate height
-private val LIST_SPACING      = 8.dp    // spacedBy between items
-private val CARD_H            = 68.dp   // ProjectCard approximate height
-private val LIST_BOTTOM_SPACER = 16.dp  // trailing Spacer inside LazyColumn
-private val EMPTY_STATE_H     = 200.dp  // ProjectsEmptyState approximate height
+private val SHEET_HANDLE_H     = 20.dp
+private val SHEET_PEEK_BAR_H   = 48.dp
+private val SHEET_DIVIDER_H    = 1.dp
+private val LIST_V_PAD         = 8.dp
+private val LIST_HEADER_H      = 40.dp
+private val LIST_SPACING       = 8.dp
+private val CARD_H             = 68.dp
+private val LIST_BOTTOM_SPACER = 16.dp
+private val EMPTY_STATE_H      = 200.dp
 
-/**
- * A draggable bottom sheet that replaces the fixed [ProjectsPanel] slot.
- *
- * Behaviour:
- * - **Collapsed** — only the drag handle + PROJECTS label row peek above the
- *   navigation bar.  The rest of the screen is unobstructed.
- * - **Expanded** — the sheet rises to just below the status bar, showing the
- *   full project list (or empty state).
- * - **Search active** — the sheet slides completely off-screen with a snappy
- *   spring, then eases back to collapsed when search is dismissed.
- *
- * All position transitions use spring physics (M3 Expressive style — no tweens).
- */
 @Composable
 fun ProjectsBottomSheet(
     projects: List<Project>,
@@ -102,36 +86,32 @@ fun ProjectsBottomSheet(
     onNewProject: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val density      = LocalDensity.current
-    val scope        = rememberCoroutineScope()
-    val navBarHeight = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+    val density         = LocalDensity.current
+    val scope           = rememberCoroutineScope()
+    val navBarHeight    = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
     val statusBarHeight = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
 
-    // Peek = handle pill + label row + nav bar clearance
-    val peekDp: Dp  = PEEK_BASE_HEIGHT + navBarHeight
+    val peekDp: Dp = PEEK_BASE_HEIGHT + navBarHeight
     val peekPx: Float
-    val minOffsetPx: Float  // top of expanded sheet (just below status bar + gap)
+    val minOffsetPx: Float
     with(density) {
-        peekPx      = peekDp.toPx()
-        minOffsetPx = (statusBarHeight + 20.dp).toPx()
+        peekPx      = peekDp.toPx().coerceAtLeast(1f)
+        minOffsetPx = (statusBarHeight + 20.dp).toPx().coerceAtLeast(0f)
     }
 
-    // Y offset: minOffsetPx = fully expanded, collapsedOffset = only peek visible
-    val offsetAnim       = remember { Animatable(20000f) }   // starts off-screen
-    var collapsedOffset  by remember { mutableFloatStateOf(0f) }
-    var isExpanded       by remember { mutableStateOf(false) }
+    val offsetAnim      = remember { Animatable(20000f) }
+    var collapsedOffset by remember { mutableFloatStateOf(0f) }
+    var isExpanded      by remember { mutableStateOf(false) }
 
     BoxWithConstraints(
         modifier         = modifier.fillMaxSize(),
         contentAlignment = Alignment.BottomCenter
     ) {
-        val fullHeightPx = with(density) { maxHeight.toPx() }
+        val fullHeightPx = with(density) { maxHeight.toPx().coerceAtLeast(1f) }
 
-        // ── Content-aware expanded anchor ─────────────────────────────────────
-        // Peek section: handle (20dp) + peek bar (48dp + navBar) + divider (1dp)
         val peekSectionDp = SHEET_HANDLE_H + SHEET_PEEK_BAR_H +
                 navBarHeight.coerceAtLeast(8.dp) + SHEET_DIVIDER_H
-        // List / empty-state content height derived from item count
+
         val rawContentDp: Dp = when {
             projects.isEmpty() -> EMPTY_STATE_H
             else -> {
@@ -141,18 +121,15 @@ fun ProjectsBottomSheet(
                         LIST_BOTTOM_SPACER + LIST_V_PAD
             }
         }
-        // Maximum sheet height before it would overlap the status-bar gap
-        val maxSheetDp = with(density) { (fullHeightPx - minOffsetPx).toDp() }
-        val clampedContentDp = rawContentDp.coerceAtMost(maxSheetDp - peekSectionDp)
+
+        val maxSheetDp       = with(density) { (fullHeightPx - minOffsetPx).toDp() }
+        val clampedContentDp = rawContentDp.coerceAtMost((maxSheetDp - peekSectionDp).coerceAtLeast(0.dp))
         val maxSheetVisualDp = peekSectionDp + clampedContentDp
 
-        // Expanded anchor: sheet bottom stays at screen bottom, top sits just
-        // above the content — no wasted empty space.
         val expandedOffset = with(density) {
             (fullHeightPx - maxSheetVisualDp.toPx()).coerceAtLeast(minOffsetPx)
         }
 
-        // Recalculate collapsed anchor whenever dimensions change
         LaunchedEffect(fullHeightPx, peekPx) {
             collapsedOffset = fullHeightPx - peekPx
             if (!isSearchActive) {
@@ -160,21 +137,18 @@ fun ProjectsBottomSheet(
             }
         }
 
-        // React to search focus toggling
         LaunchedEffect(isSearchActive) {
-            if (collapsedOffset == 0f) return@LaunchedEffect  // dimensions not ready yet
+            if (collapsedOffset <= 0f) return@LaunchedEffect
             if (isSearchActive) {
                 isExpanded = false
-                // Fast snap off-screen — clearing the way for the results panel
                 offsetAnim.animateTo(
-                    targetValue    = collapsedOffset + peekPx,
-                    animationSpec  = spring(
+                    targetValue   = collapsedOffset + peekPx,
+                    animationSpec = spring(
                         dampingRatio = Spring.DampingRatioNoBouncy,
                         stiffness    = Spring.StiffnessMedium
                     )
                 )
             } else {
-                // Return to collapsed with a gentle bounce
                 offsetAnim.animateTo(
                     targetValue   = collapsedOffset,
                     animationSpec = spring(
@@ -185,7 +159,6 @@ fun ProjectsBottomSheet(
             }
         }
 
-        // ── The draggable sheet ──────────────────────────────────────────────
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -204,7 +177,6 @@ fun ProjectsBottomSheet(
                         scope.launch {
                             val current = offsetAnim.value
                             val travel  = collapsedOffset - expandedOffset
-                            // Snap up: fast fling OR crossed 55 % of travel distance
                             val snapUp  = velocity < -600f ||
                                     (travel > 0f && current < collapsedOffset - travel * 0.55f)
                             val target  = if (snapUp) {
@@ -226,7 +198,6 @@ fun ProjectsBottomSheet(
                     }
                 )
         ) {
-            // Subtle ambient shadow behind the sheet top edge
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -239,9 +210,6 @@ fun ProjectsBottomSheet(
                     )
             )
 
-            // ── Sheet surface — wraps content height ─────────────────────────
-            // wrapContentHeight() + heightIn() means the background fills only
-            // what the content needs, not the entire screen.
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -250,16 +218,13 @@ fun ProjectsBottomSheet(
                     .clip(RoundedCornerShape(topStart = SHEET_CORNER, topEnd = SHEET_CORNER))
                     .background(AxiomVoid)
             ) {
-                // Drag handle
                 SheetHandle()
 
-                // Peek bar — always rendered, visible at any expansion level
                 SheetPeekBar(
                     projects        = projects,
                     navBarBottomPad = navBarHeight
                 )
 
-                // Thin divider line
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -267,7 +232,6 @@ fun ProjectsBottomSheet(
                         .background(AxiomDusk.copy(alpha = 0.6f))
                 )
 
-                // Content area — sized to fit the project list exactly
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -285,7 +249,6 @@ fun ProjectsBottomSheet(
                         )
                     }
 
-                    // Top gradient — masks the scroll overshoot
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -302,8 +265,6 @@ fun ProjectsBottomSheet(
         }
     }
 }
-
-// ── Handle pill ───────────────────────────────────────────────────────────────
 
 @Composable
 private fun SheetHandle() {
@@ -322,8 +283,6 @@ private fun SheetHandle() {
     }
 }
 
-// ── Peek bar ──────────────────────────────────────────────────────────────────
-
 @Composable
 private fun SheetPeekBar(
     projects: List<Project>,
@@ -338,7 +297,6 @@ private fun SheetPeekBar(
             .padding(bottom = navBarBottomPad.coerceAtLeast(8.dp))
             .height(48.dp)
     ) {
-        // Folder icon
         Icon(
             imageVector        = Icons.Rounded.FolderOpen,
             contentDescription = null,
@@ -348,7 +306,6 @@ private fun SheetPeekBar(
 
         Spacer(Modifier.width(2.dp))
 
-        // Label
         Text(
             text     = "PROJECTS",
             style    = MaterialTheme.typography.labelSmall.copy(
@@ -361,7 +318,6 @@ private fun SheetPeekBar(
             modifier = Modifier.weight(1f)
         )
 
-        // Count badge or empty hint
         if (projects.isNotEmpty()) {
             Box(
                 contentAlignment = Alignment.Center,
@@ -390,7 +346,6 @@ private fun SheetPeekBar(
             )
         }
 
-        // Upward nudge affordance
         Text(
             text  = "↑",
             style = MaterialTheme.typography.labelSmall.copy(

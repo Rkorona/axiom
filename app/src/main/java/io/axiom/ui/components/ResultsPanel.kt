@@ -47,38 +47,14 @@ import io.axiom.data.model.CommandMode
 import io.axiom.data.model.FileItem
 import io.axiom.data.model.GroupedResults
 import io.axiom.data.model.SearchResult
-import io.axiom.data.model.SymbolKind
 import io.axiom.ui.theme.AxiomCommandModeColor
 import io.axiom.ui.theme.AxiomFileModeColor
-import io.axiom.ui.theme.AxiomInk
 import io.axiom.ui.theme.AxiomSymbolModeColor
 import io.axiom.ui.theme.AxiomTextSecondary
 import io.axiom.ui.theme.AxiomVoid
 import io.axiom.ui.theme.SymbolTextStyle
 import kotlinx.coroutines.delay
 
-/**
- * The results panel that slides up from the bottom of the screen when
- * the Command Bar is focused and search results (or an empty state) are ready.
- *
- * Structure:
- * - Fade + slide-in container
- * - Inside: frosted surface with top-fade gradient edge
- * - Sections rendered from [GroupedResults] with [SectionHeader]s
- * - Each item animates in with a staggered spring entrance
- * - Empty state when query has text but no results
- *
- * @param groupedResults Search results grouped by type.
- * @param commandMode    Current mode — controls section accent colours.
- * @param isSearching    Suppresses empty state while debounce is running.
- * @param showEmptyState Shows the "no results" state when true.
- * @param visible           Whether the panel should be on screen.
- * @param isConnectedToBar   HomeScreen variant: panel sits below the bar. Top corners
- *                           flatten and horizontal padding aligns with the bar width.
- * @param isConnectedBarBelow  EditorScreen variant: panel sits above the bar. Horizontal
- *                             padding aligns with the bar width and a thin accent line
- *                             appears at the panel's bottom edge ("The Chute").
- */
 @Composable
 fun ResultsPanel(
     groupedResults: GroupedResults,
@@ -92,15 +68,12 @@ fun ResultsPanel(
     isConnectedBarBelow: Boolean = false,
     modifier: Modifier = Modifier
 ) {
-    // Accent colour for the thin divider line that replaces the top fade when docked.
     val accentColor = when (commandMode) {
         CommandMode.FILE    -> AxiomFileModeColor
         CommandMode.COMMAND -> AxiomCommandModeColor
         CommandMode.SYMBOL  -> AxiomSymbolModeColor
     }
 
-    // Top corners flatten to 6 dp when docked, matching the bar's bottom corners.
-    // NoBouncy: a corner radius must never overshoot below 0.
     val topCornerRadius by animateDpAsState(
         targetValue   = if (isConnectedToBar) 6.dp else 28.dp,
         animationSpec = spring(
@@ -110,10 +83,7 @@ fun ResultsPanel(
         label = "results-top-corner"
     )
 
-    // Horizontal padding aligns the panel width with the bar (bar has padding 16 dp).
-    // NoBouncy: padding must never go negative — a bouncy spring overshoots past 0 and
-    // crashes with "Padding must be non-negative".
-    val horizontalPadding by animateDpAsState(
+    val rawHorizontalPadding by animateDpAsState(
         targetValue   = if (isConnectedToBar || isConnectedBarBelow) 16.dp else 0.dp,
         animationSpec = spring(
             dampingRatio = Spring.DampingRatioNoBouncy,
@@ -122,11 +92,15 @@ fun ResultsPanel(
         label = "results-h-padding"
     )
 
+    // 🛡️ 边界防错：强制约束Padding >= 0.dp，彻底杜绝弹簧微幅过冲导致 IllegalArgumentException
+    val safeHorizontalPadding = rawHorizontalPadding.coerceAtLeast(0.dp)
+    val safeTopCornerRadius   = topCornerRadius.coerceAtLeast(0.dp)
+
     AnimatedVisibility(
         visible = visible,
         enter   = slideInVertically(
             animationSpec = spring(
-                dampingRatio = Spring.DampingRatioMediumBouncy,
+                dampingRatio = Spring.DampingRatioLowBouncy,
                 stiffness    = Spring.StiffnessMediumLow
             ),
             initialOffsetY = { it / 2 }
@@ -140,29 +114,26 @@ fun ResultsPanel(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(horizontal = horizontalPadding)
+                .padding(horizontal = safeHorizontalPadding)
                 .clip(
                     RoundedCornerShape(
-                        topStart    = topCornerRadius,
-                        topEnd      = topCornerRadius,
+                        topStart    = safeTopCornerRadius,
+                        topEnd      = safeTopCornerRadius,
                         bottomStart = 0.dp,
                         bottomEnd   = 0.dp
                     )
                 )
                 .background(AxiomVoid)
         ) {
-            // ── Top edge treatment ────────────────────────────────────────────
             if (isConnectedToBar) {
-                // HomeScreen: panel below bar — thin accent line seals the top junction.
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(1.dp)
-                        .background(accentColor.copy(alpha = 0.25f))
+                        .background(accentColor.copy(alpha = 0.35f))
                         .align(Alignment.TopCenter)
                 )
             } else {
-                // Default frosted fade at the top edge.
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -176,14 +147,12 @@ fun ResultsPanel(
                 )
             }
 
-            // ── Bottom edge treatment ─────────────────────────────────────────
             if (isConnectedBarBelow) {
-                // EditorScreen: panel above bar — thin accent line seals the bottom junction.
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(1.dp)
-                        .background(accentColor.copy(alpha = 0.25f))
+                        .background(accentColor.copy(alpha = 0.35f))
                         .align(Alignment.BottomCenter)
                 )
             }
@@ -202,8 +171,6 @@ fun ResultsPanel(
     }
 }
 
-// ── Results list ──────────────────────────────────────────────────────────────
-
 @Composable
 private fun ResultsList(
     groupedResults: GroupedResults,
@@ -211,7 +178,6 @@ private fun ResultsList(
     onFileClick: (FileItem) -> Unit,
     onCommandClick: (AppCommand) -> Unit
 ) {
-    // Track which items have completed their entrance animation
     val revealedItems = remember(groupedResults) { mutableStateListOf<Int>() }
 
     val allItems = buildList {
@@ -229,31 +195,30 @@ private fun ResultsList(
         }
     }
 
-    // Stagger-reveal items sequentially
     LaunchedEffect(groupedResults) {
         revealedItems.clear()
         allItems.forEachIndexed { index, _ ->
-            delay(30L + index * 28L)
+            delay(25L + index * 20L)
             revealedItems.add(index)
         }
     }
 
     LazyColumn(
-        contentPadding  = PaddingValues(horizontal = 16.dp, vertical = 16.dp),
+        contentPadding      = PaddingValues(horizontal = 16.dp, vertical = 16.dp),
         verticalArrangement = Arrangement.spacedBy(6.dp),
-        modifier        = Modifier.fillMaxSize()
+        modifier            = Modifier.fillMaxSize()
     ) {
         itemsIndexed(allItems, key = { i, item ->
             when (item) {
-                is SectionMarker             -> "section-${item.title}"
-                is SearchResult.FileResult   -> "file-${item.file.id}"
-                is SearchResult.CommandResult-> "cmd-${item.command.id}"
-                is SearchResult.SymbolResult -> "sym-${item.file.id}-${item.kind.name}-${item.line}-${item.symbol}"
-                else                         -> i
+                is SectionMarker              -> "section-${item.title}"
+                is SearchResult.FileResult    -> "file-${item.file.id}"
+                is SearchResult.CommandResult -> "cmd-${item.command.id}"
+                is SearchResult.SymbolResult  -> "sym-${item.file.id}-${item.kind.name}-${item.line}-${item.symbol}"
+                else                          -> i
             }
         }) { index, item ->
             val revealed = index in revealedItems
-            StaggeredRevealItem(revealed = revealed, index = index) {
+            StaggeredRevealItem(revealed = revealed) {
                 when (item) {
                     is SectionMarker -> {
                         SectionHeader(
@@ -265,35 +230,32 @@ private fun ResultsList(
                     }
                     is SearchResult.FileResult ->
                         FileResultCard(
-                            file      = item.file,
-                            onClick   = { onFileClick(item.file) },
-                            modifier  = Modifier.fillMaxWidth()
+                            file     = item.file,
+                            onClick  = { onFileClick(item.file) },
+                            modifier = Modifier.fillMaxWidth()
                         )
                     is SearchResult.CommandResult ->
                         CommandResultCard(
-                            command   = item.command,
-                            onClick   = { onCommandClick(item.command) },
-                            modifier  = Modifier.fillMaxWidth()
+                            command  = item.command,
+                            onClick  = { onCommandClick(item.command) },
+                            modifier = Modifier.fillMaxWidth()
                         )
                     is SearchResult.SymbolResult ->
                         SymbolResultCard(
-                            result    = item,
-                            modifier  = Modifier.fillMaxWidth()
+                            result   = item,
+                            modifier = Modifier.fillMaxWidth()
                         )
                 }
             }
         }
 
-        item { Spacer(Modifier.height(16.dp)) } // breathing room; nav bar handled by outer Column
+        item { Spacer(Modifier.height(16.dp)) }
     }
 }
-
-// ── Staggered reveal wrapper ──────────────────────────────────────────────────
 
 @Composable
 private fun StaggeredRevealItem(
     revealed: Boolean,
-    index: Int,
     content: @Composable () -> Unit
 ) {
     AnimatedVisibility(
@@ -303,14 +265,12 @@ private fun StaggeredRevealItem(
                 dampingRatio = Spring.DampingRatioMediumBouncy,
                 stiffness    = Spring.StiffnessMediumLow
             ),
-            initialOffsetY = { it / 2 }
+            initialOffsetY = { it / 3 }
         ) + fadeIn(spring(stiffness = Spring.StiffnessMedium))
     ) {
         content()
     }
 }
-
-// ── Symbol result card ────────────────────────────────────────────────────────
 
 @Composable
 private fun SymbolResultCard(
@@ -344,8 +304,6 @@ private fun SymbolResultCard(
     }
 }
 
-// ── Empty state ───────────────────────────────────────────────────────────────
-
 @Composable
 private fun EmptyResultsState() {
     Column(
@@ -363,24 +321,22 @@ private fun EmptyResultsState() {
         )
         Spacer(Modifier.height(12.dp))
         Text(
-            text      = "No results",
-            style     = MaterialTheme.typography.titleSmall.copy(
+            text  = "No results",
+            style = MaterialTheme.typography.titleSmall.copy(
                 color = AxiomTextSecondary.copy(alpha = 0.6f)
             ),
             textAlign = TextAlign.Center
         )
         Spacer(Modifier.height(4.dp))
         Text(
-            text      = "Try a different query or check your spelling",
-            style     = MaterialTheme.typography.bodySmall.copy(
+            text  = "Try a different query or check your spelling",
+            style = MaterialTheme.typography.bodySmall.copy(
                 color = AxiomTextSecondary.copy(alpha = 0.4f)
             ),
             textAlign = TextAlign.Center
         )
     }
 }
-
-// ── Internal data types ───────────────────────────────────────────────────────
 
 private data class SectionMarker(
     val title: String,

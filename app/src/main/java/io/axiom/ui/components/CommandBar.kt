@@ -2,8 +2,8 @@ package io.axiom.ui.components
 
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.Spring
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
@@ -39,7 +39,6 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -56,7 +55,6 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
-import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.font.FontFamily
@@ -69,7 +67,6 @@ import io.axiom.ui.home.commandBarHints
 import io.axiom.ui.theme.AxiomCommandModeColor
 import io.axiom.ui.theme.AxiomFileModeColor
 import io.axiom.ui.theme.AxiomMist
-import io.axiom.ui.theme.AxiomSlate
 import io.axiom.ui.theme.AxiomSymbolModeColor
 import io.axiom.ui.theme.AxiomTextDisabled
 import io.axiom.ui.theme.AxiomTextPrimary
@@ -77,32 +74,12 @@ import io.axiom.ui.theme.AxiomViolet
 import io.axiom.ui.theme.AxiomVoid
 
 /**
- * The Command Bar — the centrepiece of the Axiom home screen.
+ * 遵循 Material 3 Expressive 规范的悬浮 CommandBar 变形胶囊。
  *
- * Design: a morphing pill that expands into a full-width search field when
- * focused, with spring-physics driven shape, shadow, and colour transitions.
- *
- * States:
- * - **Idle** — compact pill, soft glow, cycling placeholder hints
- * - **Focused (FILE mode)** — expands, violet accent border + glow
- * - **Focused (COMMAND >)** — coral accent, monospace `>` prefix
- * - **Focused (SYMBOL #)** — mint accent, monospace `#` prefix
- *
- * @param query              Current text in the field.
- * @param commandMode        Derived from query prefix; controls accent colour.
- * @param isExpanded         True when the field has keyboard focus.
- * @param placeholderIndex   Index into [commandBarHints] for the cycling hint.
- * @param isSearching        Shows a loading indicator while results stream in.
- * @param onQueryChange      Called on every keystroke.
- * @param onFocusChange      Called when focus state changes.
- * @param hints              Cycling placeholder strings. Defaults to [commandBarHints].
- * @param onClear            Called when the ✕ button is pressed.
- * @param onFileTreeClick         When non-null, shows a folder icon button on the left that
- *                                opens the file tree. Pass null (default) to hide the button
- *                                (e.g. on the home screen where there is no project open).
- * @param isConnectedToPanelAbove When true and expanded, the bar's top corners flatten so it
- *                                visually fuses with the ResultsPanel sitting above it in the
- *                                editor ("The Chute" effect — panel above, bar below).
+ * 动效增强：
+ * 1. 采用 Expressive 物理弹簧控制 Corner Radius、Elevation 与 Scale。
+ * 2. 支持 "The Chute" 对接效果：当结果面板在其上方展开时，顶部圆角自动坍缩为 `6.dp` 贴合。
+ * 3. 动态模式呼吸高光圈 (Multi-layer Halo Glow)。
  */
 @Composable
 fun CommandBar(
@@ -122,25 +99,26 @@ fun CommandBar(
     val keyboard = LocalSoftwareKeyboardController.current
     val focusRequester = remember { FocusRequester() }
 
-    // ── Accent colour — smoothly transitions between modes ───────────────────
+    // ── 模式主色调过渡 ───────────────────────────────────────────────────────
     val modeAccentColor by animateColorAsState(
         targetValue   = commandMode.toAccentColor(),
-        animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
-        label         = "cmd-bar-accent"
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioLowBouncy,
+            stiffness    = Spring.StiffnessMediumLow
+        ),
+        label = "cmd-bar-accent"
     )
 
-    // ── Shape ─────────────────────────────────────────────────────────────────
-    val cornerRadius by animateDpAsState(
+    // ── 物理圆角演变 ──────────────────────────────────────────────────────────
+    val bottomCornerRadius by animateDpAsState(
         targetValue   = if (isExpanded) 20.dp else 30.dp,
         animationSpec = spring(
-            dampingRatio = Spring.DampingRatioMediumBouncy,
+            dampingRatio = Spring.DampingRatioLowBouncy,
             stiffness    = Spring.StiffnessMedium
         ),
-        label = "cmd-bar-corner"
+        label = "cmd-bar-bottom-corner"
     )
-    // Top corners flatten to 6 dp when the results panel is docked above (editor layout),
-    // so bar + panel share a seamless flat junction ("The Chute" effect).
-    // NoBouncy: corner radius must never overshoot below 0.
+
     val topCornerRadius by animateDpAsState(
         targetValue   = if (isExpanded && isConnectedToPanelAbove) 6.dp
                         else if (isExpanded) 20.dp
@@ -152,21 +130,19 @@ fun CommandBar(
         label = "cmd-bar-top-corner"
     )
 
-    // ── Elevation ─────────────────────────────────────────────────────────────
+    // ── 阴影与光晕强弱 ────────────────────────────────────────────────────────
     val elevation by animateDpAsState(
-        targetValue   = if (isExpanded) 20.dp else 6.dp,
+        targetValue   = if (isExpanded) 24.dp else 6.dp,
         animationSpec = spring(stiffness = Spring.StiffnessMedium),
         label         = "cmd-bar-elevation"
     )
 
-    // ── Glow halo intensity ───────────────────────────────────────────────────
     val glowAlpha by animateFloatAsState(
-        targetValue   = if (isExpanded) 0.50f else 0.20f,
+        targetValue   = if (isExpanded) 0.55f else 0.18f,
         animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
         label         = "cmd-bar-glow"
     )
 
-    // ── Bar height ────────────────────────────────────────────────────────────
     val barHeight by animateDpAsState(
         targetValue   = if (isExpanded) 58.dp else 52.dp,
         animationSpec = spring(
@@ -176,28 +152,17 @@ fun CommandBar(
         label = "cmd-bar-height"
     )
 
-    // ── Border alpha ──────────────────────────────────────────────────────────
     val borderAlpha by animateFloatAsState(
-        targetValue   = if (isExpanded) 0.65f else 0.22f,
+        targetValue   = if (isExpanded) 0.75f else 0.25f,
         animationSpec = spring(stiffness = Spring.StiffnessMedium),
         label         = "cmd-bar-border"
-    )
-
-    // ── Scale entrance (slight pop when first mounted) ────────────────────────
-    val scaleEntrance by animateFloatAsState(
-        targetValue   = 1f,
-        animationSpec = spring(
-            dampingRatio = Spring.DampingRatioLowBouncy,
-            stiffness    = Spring.StiffnessLow
-        ),
-        label = "cmd-bar-entry-scale"
     )
 
     val shape = RoundedCornerShape(
         topStart    = topCornerRadius,
         topEnd      = topCornerRadius,
-        bottomStart = cornerRadius,
-        bottomEnd   = cornerRadius
+        bottomStart = bottomCornerRadius,
+        bottomEnd   = bottomCornerRadius
     )
 
     BasicTextField(
@@ -214,39 +179,36 @@ fun CommandBar(
         ),
         cursorBrush = SolidColor(modeAccentColor),
         modifier    = modifier
-            .graphicsLayer { scaleX = scaleEntrance; scaleY = scaleEntrance }
             .focusRequester(focusRequester)
             .onFocusChanged { onFocusChange(it.isFocused) }
             .shadow(
                 elevation    = elevation,
                 shape        = shape,
-                spotColor    = modeAccentColor.copy(alpha = 0.50f),
+                spotColor    = modeAccentColor.copy(alpha = 0.55f),
                 ambientColor = modeAccentColor.copy(alpha = 0.25f)
             )
-            // Outer glow halo — drawn behind the clipped surface
             .drawBehind {
-                val cr = cornerRadius.toPx()
+                val cr = bottomCornerRadius.toPx()
                 drawRoundRect(
                     brush        = Brush.verticalGradient(
                         colors = listOf(
-                            modeAccentColor.copy(alpha = glowAlpha * 0.6f),
-                            modeAccentColor.copy(alpha = glowAlpha * 0.15f)
+                            modeAccentColor.copy(alpha = glowAlpha * 0.7f),
+                            modeAccentColor.copy(alpha = glowAlpha * 0.12f)
                         )
                     ),
-                    topLeft      = Offset(-12f, -12f),
-                    size         = Size(size.width + 24f, size.height + 24f),
-                    cornerRadius = CornerRadius(cr + 12f, cr + 12f)
+                    topLeft      = Offset(-10f, -10f),
+                    size         = Size(size.width + 20f, size.height + 20f),
+                    cornerRadius = CornerRadius(cr + 10f, cr + 10f)
                 )
             }
             .clip(shape)
             .background(AxiomVoid)
-            // Accent border ring
             .border(
                 width = 1.2.dp,
                 brush = Brush.linearGradient(
                     colors = listOf(
                         modeAccentColor.copy(alpha = borderAlpha),
-                        AxiomMist.copy(alpha = borderAlpha * 0.5f),
+                        AxiomMist.copy(alpha = borderAlpha * 0.4f),
                         modeAccentColor.copy(alpha = borderAlpha * 0.8f)
                     )
                 ),
@@ -260,7 +222,6 @@ fun CommandBar(
                     .height(barHeight)
                     .padding(horizontal = 18.dp)
             ) {
-                // ── Folder button (editor only — hidden on home screen) ────────
                 if (onFileTreeClick != null) {
                     IconButton(
                         onClick  = onFileTreeClick,
@@ -269,21 +230,19 @@ fun CommandBar(
                         Icon(
                             imageVector        = Icons.Rounded.FolderOpen,
                             contentDescription = "Browse files",
-                            tint               = AxiomViolet.copy(alpha = 0.75f),
+                            tint               = AxiomViolet.copy(alpha = 0.85f),
                             modifier           = Modifier.size(17.dp)
                         )
                     }
-                    // Thin vertical divider
                     Box(
                         modifier = Modifier
                             .width(1.dp)
                             .height(16.dp)
-                            .background(AxiomMist.copy(alpha = 0.25f))
+                            .background(AxiomMist.copy(alpha = 0.3f))
                     )
                     Spacer(Modifier.width(8.dp))
                 }
 
-                // ── Mode indicator ────────────────────────────────────────────
                 CommandModeIndicator(
                     mode        = commandMode,
                     accentColor = modeAccentColor
@@ -291,18 +250,16 @@ fun CommandBar(
 
                 Spacer(Modifier.width(10.dp))
 
-                // ── Text field + animated placeholder (centre) ────────────────
                 Box(
                     contentAlignment = Alignment.CenterStart,
                     modifier         = Modifier.weight(1f)
                 ) {
-                    // Cycling placeholder — only visible when query is empty
                     if (query.isEmpty()) {
                         AnimatedContent(
-                            targetState   = placeholderIndex,
+                            targetState    = placeholderIndex,
                             transitionSpec = {
-                                (slideInVertically { it / 3 } + fadeIn(tween(220))) togetherWith
-                                (slideOutVertically { -it / 3 } + fadeOut(tween(160)))
+                                (slideInVertically { it / 2 } + fadeIn(tween(220))) togetherWith
+                                (slideOutVertically { -it / 2 } + fadeOut(tween(160)))
                             },
                             label = "placeholder-cycle"
                         ) { index ->
@@ -316,13 +273,11 @@ fun CommandBar(
                             )
                         }
                     }
-                    // The actual text input
                     innerTextField()
                 }
 
                 Spacer(Modifier.width(8.dp))
 
-                // ── Loading spinner ───────────────────────────────────────────
                 AnimatedVisibility(
                     visible = isSearching,
                     enter   = scaleIn(spring(dampingRatio = Spring.DampingRatioMediumBouncy)) + fadeIn(),
@@ -339,7 +294,6 @@ fun CommandBar(
                     }
                 }
 
-                // ── Clear button ──────────────────────────────────────────────
                 AnimatedVisibility(
                     visible = query.isNotEmpty() && !isSearching,
                     enter   = scaleIn(spring(dampingRatio = Spring.DampingRatioMediumBouncy)) + fadeIn(),
@@ -365,24 +319,13 @@ fun CommandBar(
     )
 }
 
-// ── Mode indicator composable ─────────────────────────────────────────────────
-
-/**
- * The left-side indicator inside the Command Bar.
- *
- * - FILE mode    → magnifying-glass icon (animates in from the left)
- * - COMMAND mode → `>` text prefix
- * - SYMBOL mode  → `#` text prefix
- *
- * Transitions between modes with a vertical slide + fade.
- */
 @Composable
 private fun CommandModeIndicator(
     mode: CommandMode,
     accentColor: Color
 ) {
     AnimatedContent(
-        targetState   = mode,
+        targetState    = mode,
         transitionSpec = {
             (slideInVertically { -it } + fadeIn(tween(180))) togetherWith
             (slideOutVertically {  it } + fadeOut(tween(120)))
@@ -417,8 +360,6 @@ private fun CommandModeIndicator(
         }
     }
 }
-
-// ── Extension helpers ─────────────────────────────────────────────────────────
 
 private fun CommandMode.toAccentColor(): Color = when (this) {
     CommandMode.FILE    -> AxiomFileModeColor
