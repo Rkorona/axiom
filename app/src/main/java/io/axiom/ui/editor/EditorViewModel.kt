@@ -151,9 +151,25 @@ class EditorViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
+    /** Called when the user taps the code editor surface (keyboard about to open). */
+    fun onEditorFocused() {
+        _uiState.update { it.copy(bottomBarMode = BottomBarMode.SYMBOLS) }
+    }
+
+    /** Called when the bottom bar should switch to a specific mode. */
+    fun onBottomBarModeChange(mode: BottomBarMode) {
+        _uiState.update { it.copy(bottomBarMode = mode) }
+    }
+
     fun onCommandBarFocusChange(focused: Boolean) {
         _uiState.update { it.copy(isCommandBarFocused = focused) }
-        if (focused) hintCycleJob?.cancel() else startHintCycle()
+        if (focused) {
+            hintCycleJob?.cancel()
+            // Always show the command bar while the user is actively searching.
+            _uiState.update { it.copy(bottomBarMode = BottomBarMode.COMMAND) }
+        } else {
+            startHintCycle()
+        }
     }
 
     fun onClearQuery() {

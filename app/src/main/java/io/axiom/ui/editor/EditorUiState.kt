@@ -6,6 +6,9 @@ import io.axiom.data.model.FileItem
 import io.axiom.data.model.GroupedResults
 import io.axiom.data.model.Project
 
+/** Controls which widget occupies the bottom bar while the keyboard is visible. */
+enum class BottomBarMode { COMMAND, SYMBOLS }
+
 /**
  * Immutable snapshot of everything [EditorScreen] needs to render.
  *
@@ -40,6 +43,11 @@ data class EditorUiState(
     val groupedResults: GroupedResults = GroupedResults(),
     val showEmptyState: Boolean = false,
     val placeholderIndex: Int = 0,
+
+    // ── Bottom bar mode ──────────────────────────────────────────────────────
+    /** SYMBOLS when the code editor has focus; COMMAND when the command bar has
+     *  focus or the keyboard is hidden.  Only meaningful while keyboard is up. */
+    val bottomBarMode: BottomBarMode = BottomBarMode.COMMAND,
 
     // ── App settings (mirrored from AppSettingsRepository) ───────────────────
     val editorSettings:     EditorSettings = EditorSettings(),

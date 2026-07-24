@@ -3,6 +3,7 @@ package io.axiom.ui.editor
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.AnimatedVisibilityScope
+import androidx.compose.animation.Crossfade
 import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.animation.SharedTransitionScope
 import androidx.compose.animation.core.Spring
@@ -19,7 +20,9 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
@@ -47,6 +50,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
@@ -62,6 +66,7 @@ import io.axiom.ui.components.AnimatedBackground
 import io.axiom.ui.components.CommandBar
 import io.axiom.ui.components.FileTreeModalSheet
 import io.axiom.ui.components.ResultsPanel
+import io.axiom.ui.components.SymbolBar
 import io.axiom.ui.theme.AxiomDusk
 import io.axiom.ui.theme.AxiomInk
 import io.axiom.ui.theme.AxiomMist
@@ -101,10 +106,18 @@ fun EditorScreen(
     sharedTransitionScope: SharedTransitionScope? = null,
     animatedVisibilityScope: AnimatedVisibilityScope? = null
 ) {
-    val uiState    by viewModel.uiState.collectAsState()
-    val focusManager = LocalFocusManager.current
-    val focused    = uiState.isCommandBarFocused
-    var showFileTree by remember { mutableStateOf(false) }
+    val uiState      by viewModel.uiState.collectAsState()
+    val focusManager  = LocalFocusManager.current
+    val focused       = uiState.isCommandBarFocused
+    var showFileTree  by remember { mutableStateOf(false) }
+
+    // Keyboard visibility — drives bottom-bar mode switching
+    val density         = LocalDensity.current
+    val keyboardVisible = WindowInsets.ime.getBottom(density) > 0
+    val showSymbolBar   = keyboardVisible && uiState.bottomBarMode == BottomBarMode.SYMBOLS
+
+    // Controller lets SymbolBar insert characters at the editor cursor
+    val editorController = rememberSoraEditorController()
 
     // Load project once on first composition
     LaunchedEffect(projectId) { viewModel.loadProject(projectId) }
@@ -166,20 +179,25 @@ fun EditorScreen(
                 when {
                     uiState.isLoadingContent -> LoadingOverlay()
                     uiState.openFile != null -> SoraCodeEditor(
-                        content         = uiState.fileContent,
-                        fileKey         = "${uiState.openFile!!.path}${uiState.openFile!!.name}",
-                        language        = uiState.openFile!!.language,
-                        onContentChange = viewModel::onContentChange,
-                        settings        = uiState.editorSettings,
-                        modifier        = Modifier.fillMaxSize()
+                        content             = uiState.fileContent,
+                        fileKey             = "${uiState.openFile!!.path}${uiState.openFile!!.name}",
+                        language            = uiState.openFile!!.language,
+                        onContentChange     = viewModel::onContentChange,
+                        settings            = uiState.editorSettings,
+                        controller          = editorController,
+                        onEditorFocusChange = { hasFocus ->
+                            if (hasFocus) viewModel.onEditorFocused()
+                        },
+                        modifier            = Modifier.fillMaxSize()
                     )
                     else                     -> EditorEmptyState(isLoadingFiles = uiState.isLoadingFiles)
                 }
             }
 
-            // Results panel — sits directly above the CommandBar so results slide up
-            // from the bar rather than appearing at the top of the screen.
-            val resultsVisible = focused && (uiState.query.isNotEmpty() || !uiState.groupedResults.isEmpty)
+            // Results panel — only relevant when CommandBar is visible.
+            // Hidden while symbol bar is showing (keyboard up, editor focused).
+            val resultsVisible = focused && !showSymbolBar &&
+                (uiState.query.isNotEmpty() || !uiState.groupedResults.isEmpty)
             ResultsPanel(
                 groupedResults      = uiState.groupedResults,
                 commandMode         = uiState.commandMode,
@@ -198,39 +216,51 @@ fun EditorScreen(
                     .heightIn(max = 360.dp)
             )
 
-            // Command bar — B2 primary operation surface, always present at bottom
-            // Plan C: sharedElement shares this bar with the home-screen CommandBar
-            // so it morphs across the transition rather than fading in from nothing.
-            val cmdBarModifier = if (sharedTransitionScope != null && animatedVisibilityScope != null) {
-                with(sharedTransitionScope) {
-                    Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 8.dp)
-                        .sharedElement(
-                            sharedContentState      = rememberSharedContentState(key = "command-bar"),
-                            animatedVisibilityScope = animatedVisibilityScope
-                        )
+            // Bottom bar — switches between SymbolBar (editor focused) and
+            // CommandBar (searching / keyboard hidden).
+            val barPadding = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 8.dp)
+
+            Crossfade(targetState = showSymbolBar, label = "bottom-bar-switch") { isSymbols ->
+                if (isSymbols) {
+                    SymbolBar(
+                        onSymbolClick = { symbol -> editorController.insertText(symbol) },
+                        onSearchClick = { viewModel.onBottomBarModeChange(BottomBarMode.COMMAND) },
+                        accentColor   = fileAccentColor,
+                        modifier      = barPadding
+                    )
+                } else {
+                    // Shared-element transition: morphs with the home-screen CommandBar
+                    val cmdBarModifier = if (sharedTransitionScope != null && animatedVisibilityScope != null) {
+                        with(sharedTransitionScope) {
+                            barPadding.sharedElement(
+                                sharedContentState      = rememberSharedContentState(key = "command-bar"),
+                                animatedVisibilityScope = animatedVisibilityScope
+                            )
+                        }
+                    } else {
+                        barPadding
+                    }
+                    CommandBar(
+                        query                   = uiState.query,
+                        commandMode             = uiState.commandMode,
+                        isExpanded              = focused,
+                        placeholderIndex        = uiState.placeholderIndex,
+                        isSearching             = uiState.isSearching,
+                        hints                   = editorCommandBarHints,
+                        onQueryChange           = viewModel::onQueryChange,
+                        onFocusChange           = viewModel::onCommandBarFocusChange,
+                        onClear                 = viewModel::onClearQuery,
+                        onFileTreeClick         = { showFileTree = true },
+                        showSymbolIcon          = keyboardVisible,
+                        onShowSymbols           = { viewModel.onBottomBarModeChange(BottomBarMode.SYMBOLS) },
+                        isConnectedToPanelAbove = resultsVisible,
+                        fileAccentColor         = fileAccentColor,
+                        modifier                = cmdBarModifier
+                    )
                 }
-            } else {
-                Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 8.dp)
             }
-            CommandBar(
-                query                    = uiState.query,
-                commandMode              = uiState.commandMode,
-                isExpanded               = focused,
-                placeholderIndex         = uiState.placeholderIndex,
-                isSearching              = uiState.isSearching,
-                hints                    = editorCommandBarHints,
-                onQueryChange            = viewModel::onQueryChange,
-                onFocusChange            = viewModel::onCommandBarFocusChange,
-                onClear                  = viewModel::onClearQuery,
-                onFileTreeClick          = { showFileTree = true },
-                isConnectedToPanelAbove  = resultsVisible,
-                fileAccentColor          = fileAccentColor,
-                modifier                 = cmdBarModifier
-            )
 
             Spacer(Modifier.navigationBarsPadding())
         }

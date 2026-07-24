@@ -33,15 +33,18 @@ import io.github.rosemoe.sora.widget.CodeEditor
  */
 @Composable
 fun SoraCodeEditor(
-    content:         String,
-    fileKey:         String,
-    language:        CodeLanguage,
-    onContentChange: (String) -> Unit,
-    settings:        EditorSettings = EditorSettings(),
-    modifier:        Modifier       = Modifier
+    content:              String,
+    fileKey:              String,
+    language:             CodeLanguage,
+    onContentChange:      (String) -> Unit,
+    settings:             EditorSettings          = EditorSettings(),
+    controller:           SoraEditorController?   = null,
+    onEditorFocusChange:  ((Boolean) -> Unit)?    = null,
+    modifier:             Modifier                = Modifier
 ) {
-    val context       = LocalContext.current
-    val onChangeState = rememberUpdatedState(onContentChange)
+    val context          = LocalContext.current
+    val onChangeState    = rememberUpdatedState(onContentChange)
+    val onFocusState     = rememberUpdatedState(onEditorFocusChange)
 
     var lastFileKey  by remember { mutableStateOf<String?>(null) }
     var lastLangKey  by remember { mutableStateOf<String?>(null) }
@@ -56,6 +59,7 @@ fun SoraCodeEditor(
             TextMateManager.init(ctx)
 
             CodeEditor(ctx).apply {
+                controller?.attach(this)
 
                 // ── Theme ──────────────────────────────────────────────────────
                 TextMateManager.applyTheme(this)
@@ -80,6 +84,11 @@ fun SoraCodeEditor(
 
                 // ── Language ───────────────────────────────────────────────────
                 setEditorLanguage(TextMateManager.createLanguage(language))
+
+                // ── Editor focus → ViewModel ───────────────────────────────────
+                setOnFocusChangeListener { _, hasFocus ->
+                    onFocusState.value?.invoke(hasFocus)
+                }
 
                 // ── Content change → ViewModel ─────────────────────────────────
                 subscribeEvent(ContentChangeEvent::class.java) { _, _ ->
@@ -119,7 +128,10 @@ fun SoraCodeEditor(
                 editor.setEditorLanguage(TextMateManager.createLanguage(language))
             }
         },
-        onRelease = { editor -> editor.release() },
+        onRelease = { editor ->
+            controller?.detach()
+            editor.release()
+        },
         modifier  = modifier
     )
 }

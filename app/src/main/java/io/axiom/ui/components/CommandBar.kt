@@ -92,6 +92,11 @@ fun CommandBar(
     onFocusChange: (Boolean) -> Unit,
     onClear: () -> Unit,
     onFileTreeClick: (() -> Unit)? = null,
+    /** When true, show a symbol-bar toggle icon to the left of the folder icon.
+     *  Should only be true while the keyboard is visible in the editor screen. */
+    showSymbolIcon: Boolean = false,
+    /** Called when the user taps the symbol-bar icon.  Ignored if [showSymbolIcon] is false. */
+    onShowSymbols: (() -> Unit)? = null,
     isConnectedToPanelAbove: Boolean = false,
     fileAccentColor: Color = AxiomFileModeColor,
     modifier: Modifier = Modifier
@@ -226,6 +231,28 @@ fun CommandBar(
                     .height(barHeight)
                     .padding(horizontal = 18.dp)
             ) {
+                // Symbol-bar toggle — only while keyboard is visible in editor
+                if (showSymbolIcon && onShowSymbols != null) {
+                    IconButton(
+                        onClick  = onShowSymbols,
+                        modifier = Modifier.size(32.dp)
+                    ) {
+                        Icon(
+                            imageVector        = Icons.Rounded.Code,
+                            contentDescription = "Switch to symbol bar",
+                            tint               = modeAccentColor.copy(alpha = 0.85f),
+                            modifier           = Modifier.size(17.dp)
+                        )
+                    }
+                    Box(
+                        modifier = Modifier
+                            .width(1.dp)
+                            .height(16.dp)
+                            .background(AxiomMist.copy(alpha = 0.3f))
+                    )
+                    Spacer(Modifier.width(4.dp))
+                }
+
                 if (onFileTreeClick != null) {
                     IconButton(
                         onClick  = onFileTreeClick,
